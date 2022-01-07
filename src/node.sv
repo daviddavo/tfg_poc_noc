@@ -47,8 +47,13 @@ module node(
     input clk,
     input rst,
     
+    node_port.up   n_u,
+    node_port.up   s_u,
     node_port.up   e_u,
     node_port.up   w_u,
+    
+    node_port.down n_d,
+    node_port.down s_d,
     node_port.down e_d,
     node_port.down w_d
     );
@@ -57,6 +62,8 @@ module node(
     flit out_e;
     reg out_e_enable;
     reg out_w_enable;
+    
+    crossbar cb ();
     
     always_comb begin
         e_u.flit <= out_e;
