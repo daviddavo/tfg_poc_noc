@@ -5,7 +5,7 @@
 // 
 // Create Date: 02.01.2022 12:11:03
 // Design Name: 
-// Module Name: crossbar
+// Module Name: crossbar_mcast
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -17,17 +17,15 @@
 // Additional Comments:
 //   Based on https://stackoverflow.com/questions/70606907/reduction-or-with-stride/70608835#70608835
 //////////////////////////////////////////////////////////////////////////////////
-module crossbar #(
+module crossbar_mcast #(
     parameter PORTS = 2,
     parameter WIDTH = 8
 )(
-    // TODO: DEST_WIDTH = $clog2(PORTS+1) (+1 because no destination)
      input        [WIDTH-1:0] data_i[PORTS],
      input        [PORTS-1:0] dest[PORTS],
-     input                    dest_en[PORTS],
      
      output logic [WIDTH-1:0] data_o[PORTS],
-     output logic [PORTS-1:0] ack
+     output logic [PORTS-1:0] ack[PORTS]
 );
 
 always_comb begin 
@@ -43,11 +41,18 @@ always_comb begin
     // For each input port
     for ( int i = 0; i < PORTS; i++ )
     begin
-        if (dest_en[i] && !used[dest[i]])
+        // For each output port
+        for ( int j = 0; j < PORTS; j++)
         begin
-            ack[i] = 1;
-            used[dest[i]] = 1;
-            data_o[dest[i]] = data_i[i];
+            ack[i][j] = dest[i][j] && !used[j];
+            
+            if (ack[i][j])
+            begin
+                assert (data_o[j] == 0);
+                
+                used[j] = 1;
+                data_o[j] = data_i[i];
+            end
         end
     end
 end

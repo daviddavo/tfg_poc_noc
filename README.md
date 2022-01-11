@@ -8,6 +8,11 @@ After creating/modifying the project, just run the following tcl command:
 write_project_tcl -origin_dir_override . -paths_relative_to /home/davo/Documents/TFG/poc_noc/ -force /home/davo/Documents/TFG/poc_noc/vivado.tcl
 ```
 
+You can just also run `update_project.tcl` like this:
+```
+$ vivado -mode batch -source update_project.tcl
+```
+
 ## How to open `vivado.tcl`
 Just use the following command in your shell:
 ```
