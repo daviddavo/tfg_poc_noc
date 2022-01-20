@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 interface node_port;
-    flit flit;
+    flit_t flit;
     logic enable;
     
     modport down (
@@ -58,38 +58,64 @@ module node(
     node_port.down w_d
     );
     
-    flit out_w;
-    flit out_e;
-    reg out_e_enable;
-    reg out_w_enable;
+    localparam PORTS = 4;
+    typedef enum { IDLE, ESTABLISHED } state_t;
+    typedef enum { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } dir_t;
     
-    crossbar cb ();
+    reg [PORTS-1:0] dest[PORTS];
+    reg             dest_en[PORTS];
+    reg state;
+    logic [PORTS-1:0] ack;
+    logic [$bits(flit_t)-1:0] data_o[PORTS];
     
-    always_comb begin
-        e_u.flit <= out_e;
-        e_u.enable <= out_e_enable;
-        w_u.flit <= out_w;
-        w_u.enable <= out_w_enable;
-    end
+    crossbar #(
+        .PORTS(PORTS),
+        .WIDTH($bits(flit_t))
+    ) cb (
+        .data_i('{n_d.flit, s_d.flit, e_d.flit, w_d.flit}),
+        .dest(dest),
+        .data_o('{n_u.flit, s_u.flit, e_u.flit, w_u.flit}),
+        .ack(ack)
+    );
     
     always @ (posedge clk) begin
       if (rst) begin
-        out_w.data <= 7'b0;
-        out_e.data <= 7'b0;
-        out_e_enable <= 0;
-        out_e_enable <= 0;
-      end else if (clk) begin
-        if (e_d.enable) begin
-            out_w <= e_d.flit;
-            out_w_enable <= 1;
-        end else
-            out_w_enable <= 0;
-        
-        if (w_d.enable) begin
-            out_e <= w_d.flit;
-            out_e_enable <= 1;
-        end else
-            out_e_enable <= 0;
+        for (int i = 0; i < 4; i++)
+        begin
+            dest[i] <= 0;
+            dest_en[i] <= 0;
+            ack[i] <= 0;
+            state <= IDLE;
+        end
+      end else if (clk) begin 
+        case (state)
+        IDLE:
+            begin
+                // If there is a header trying to enter
+                
+                // Extract address from header
+                dir_t dst = NORTH; 
+                
+                // Get destination port from header (Dimensional Order Routing)
+                
+                // Allocate output port if possible (check in dest if its used)
+                
+                // Enable  ACK
+                if (ack[dst]) begin
+                    state <= ESTABLISHED;
+                end
+            end
+        ESTABLISHED:
+            begin
+                // Just retransmit the data
+                
+                if (flit_t == IDLE) begin
+                    // Liberate allocated resources
+                    
+                    state <= IDLE;
+                end
+            end
+        endcase
       end
    end
 endmodule
