@@ -21,7 +21,6 @@ module crossbar #(
     parameter PORTS = 2,
     parameter WIDTH = 8
 )(
-    // TODO: DEST_WIDTH = $clog2(PORTS+1) (+1 because no destination)
      input        [WIDTH-1:0] data_i[PORTS],
      input        [PORTS-1:0] dest[PORTS],
      input                    dest_en[PORTS],

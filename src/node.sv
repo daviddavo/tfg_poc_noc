@@ -22,14 +22,19 @@ interface node_port;
     flit_t flit;
     logic enable;
     
+    // Backpressure
+    logic ack;
+    
     modport down (
-        input flit,
-        input enable
+        input  flit,
+        input  enable,        
+        output ack
     );
     
     modport up (
         output flit,
-        output enable
+        output enable,
+        input  ack
     );
 endinterface
 
@@ -39,44 +44,73 @@ module node_link(
     );
     assign down.flit = up.flit;
     assign down.enable = up.enable;
+    assign down.ack = up.ack;
 endmodule
 
-// TODO: Use verilog interfaces
-// https://www.chipverify.com/systemverilog/systemverilog-interface
-module node(
+function dir_t dimensional_order_routing(int x, int y, addr_t dst);
+    // TODO: Do this
+    
+    // This is the desired column
+    if (dst.y == y) begin
+        if (dst.x == x) begin
+            // This should not happen
+            $error("Illegal state: Node received flit with himself as the destination");
+        end else if (dst.x > x) begin
+            return SOUTH;
+        end else begin
+            return NORTH;
+        end
+    end else if (dst.y > y) begin
+        return EAST;
+    end else begin // dst.y < y
+        return WEST;
+    end
+    
+    return EAST;
+endfunction
+
+// TODO: Parameter con su pos dentor de la red
+module node #(
+    parameter X = 1,
+    parameter Y = 1
+) (
     input clk,
     input rst,
     
-    node_port.up   n_u,
-    node_port.up   s_u,
-    node_port.up   e_u,
-    node_port.up   w_u,
-    
-    node_port.down n_d,
-    node_port.down s_d,
-    node_port.down e_d,
-    node_port.down w_d
+    node_port.up   ports_up[4],
+    node_port.down ports_down[4]
     );
     
     localparam PORTS = 4;
     typedef enum { IDLE, ESTABLISHED } state_t;
-    typedef enum { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } dir_t;
     
     reg [PORTS-1:0] dest[PORTS];
     reg             dest_en[PORTS];
-    reg state;
+    reg state[PORTS];
     logic [PORTS-1:0] ack;
+    // TODO: Use `FLIT_WIDTH
+    logic [$bits(flit_t)-1:0] data_i[PORTS];
     logic [$bits(flit_t)-1:0] data_o[PORTS];
     
     crossbar #(
         .PORTS(PORTS),
         .WIDTH($bits(flit_t))
     ) cb (
-        .data_i('{n_d.flit, s_d.flit, e_d.flit, w_d.flit}),
+        .data_i(data_i),
         .dest(dest),
-        .data_o('{n_u.flit, s_u.flit, e_u.flit, w_u.flit}),
+        .data_o(data_o),
         .ack(ack)
     );
+    
+    // Connect crossbar to input/output
+    genvar gi;
+    generate
+        for (gi = 0; gi < PORTS; gi++)
+        begin
+            assign data_i[gi] = ports_down[gi].flit;
+            assign ports_up[gi].flit = data_o[gi];
+        end
+    endgenerate
     
     always @ (posedge clk) begin
       if (rst) begin
@@ -85,37 +119,46 @@ module node(
             dest[i] <= 0;
             dest_en[i] <= 0;
             ack[i] <= 0;
-            state <= IDLE;
+            state[i] <= IDLE;
         end
-      end else if (clk) begin 
-        case (state)
-        IDLE:
-            begin
+      end else if (clk) begin
+        for (int i = 0; i < PORTS; i++) 
+        begin
+          // logic enable = ports_down[i].enable;
+          // flit_t flit = ports_down[i].flit;
+          case (state[i])
+            IDLE:
                 // If there is a header trying to enter
-                
-                // Extract address from header
-                dir_t dst = NORTH; 
-                
-                // Get destination port from header (Dimensional Order Routing)
-                
-                // Allocate output port if possible (check in dest if its used)
-                
-                // Enable  ACK
-                if (ack[dst]) begin
-                    state <= ESTABLISHED;
-                end
-            end
-        ESTABLISHED:
-            begin
-                // Just retransmit the data
-                
-                if (flit_t == IDLE) begin
-                    // Liberate allocated resources
+                if (ports_down[i].enable)
+                begin
+                    control_hdr_t hdr = ports_down[i].flit.payload;
+
+                    // Get destination port from header (Dimensional Order Routing)
+                    dest[i] <= dimensional_order_routing(X, Y, hdr.dst_addr);
                     
-                    state <= IDLE;
+                    // Allocate output port if possible (check in dest if its used)
+                    
+                    // Check if output port has been allocated by the following routers (check ports_down[i].ack)
+                    
+                    // Enable  ACK
+                    if (ack[dest[i]]) begin
+                        state[i] <= ESTABLISHED;
+                    end
                 end
-            end
-        endcase
+            ESTABLISHED:
+                begin
+                    // Just retransmit the data
+                    
+                    if (flit.flit_type == TAIL) begin
+                        // Liberate allocated resources
+                        dest_en[i] <= 0;
+                        ack[i] <= 0;
+                        
+                        state[i] <= IDLE;
+                    end
+                end
+          endcase
+         end
       end
    end
 endmodule

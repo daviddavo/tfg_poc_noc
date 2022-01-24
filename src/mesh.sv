@@ -53,29 +53,15 @@ module mesh #(
     begin: nodes_h
         for ( j = 0; j < MESH_WIDTH; j++ )
         begin: nodes_w
-            node_port north_up();
-            node_port south_up();
-            node_port east_up();
-            node_port west_up();
-            
-            node_port north_down();
-            node_port south_down();
-            node_port east_down();
-            node_port west_down();
+            // TODO: Use `NODE_PORTS
+            node_port ports_up[4]();
+            node_port ports_down[4]();
         
-            node node (
+            node #(i+1, j+1) node (
                 .clk(clk),
                 .rst(rst),
-                // up
-                .n_u(north_up),
-                .s_u(south_up),
-                .e_u(east_up),
-                .w_u(west_up),
-                // down
-                .n_d(north_down),
-                .s_d(south_down),
-                .e_d(east_down),
-                .w_d(west_down)
+                .ports_up(ports_up),
+                .ports_down(ports_down)
             );
         end
     end
@@ -87,13 +73,13 @@ module mesh #(
         begin
             // West to East
             node_link west2east (
-                .up(nodes_h[i].nodes_w[j].west_up),
-                .down(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].east_down)
+                .up(nodes_h[i].nodes_w[j].ports_up[WEST]),
+                .down(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].ports_down[EAST])
             );
             // East to West
             node_link east2west (
-                .up(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].east_up), 
-                .down(nodes_h[i].nodes_w[j].west_down)
+                .up(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].ports_up[EAST]), 
+                .down(nodes_h[i].nodes_w[j].ports_down[WEST])
             );
         end
     end
@@ -105,14 +91,14 @@ module mesh #(
         begin
             // North to South
             node_link north2south (
-                .up(nodes_h[i].nodes_w[j].north_up),
-                .down(nodes_h[i+1].nodes_w[j].south_down)
+                .up(nodes_h[i].nodes_w[j].ports_up[NORTH]),
+                .down(nodes_h[i+1].nodes_w[j].ports_down[SOUTH])
             );
             
             // South to North
             node_link south2north (
-                .up(nodes_h[i+1].nodes_w[j].south_up),
-                .down(nodes_h[i].nodes_w[j].north_down)
+                .up(nodes_h[i+1].nodes_w[j].ports_up[SOUTH]),
+                .down(nodes_h[i].nodes_w[j].ports_down[NORTH])
             );
         end
     end
@@ -121,23 +107,23 @@ module mesh #(
     for ( i = 0; i < MESH_HEIGHT; i++)
     begin
         node_link westOut (
-            .up(nodes_h[i].nodes_w[EDGE_WEST].west_up),
+            .up(nodes_h[i].nodes_w[EDGE_WEST].ports_up[WEST]),
             .down(west_down[i])
         );
         
         node_link westIn (
             .up(west_up[i]),
-            .down(nodes_h[i].nodes_w[EDGE_WEST].west_down)
+            .down(nodes_h[i].nodes_w[EDGE_WEST].ports_down[WEST])
         );
         
         node_link eastOut (
-            .up(nodes_h[i].nodes_w[EDGE_EAST].east_up),
+            .up(nodes_h[i].nodes_w[EDGE_EAST].ports_up[EAST]),
             .down(east_down[i])
         );
         
         node_link eastIn (
             .up(east_up[i]),
-            .down(nodes_h[i].nodes_w[EDGE_EAST].east_down)
+            .down(nodes_h[i].nodes_w[EDGE_EAST].ports_down[EAST])
         );
     end
     
@@ -145,23 +131,23 @@ module mesh #(
     for ( j = 0; j < MESH_WIDTH; j++)
     begin
         node_link northOut (
-            .up(nodes_h[EDGE_NORTH].nodes_w[j].north_up),
+            .up(nodes_h[EDGE_NORTH].nodes_w[j].ports_up[NORTH]),
             .down(north_down[j])
         );
         
         node_link northIn (
             .up(north_up[j]),
-            .down(nodes_h[EDGE_NORTH].nodes_w[j].north_down)
+            .down(nodes_h[EDGE_NORTH].nodes_w[j].ports_down[NORTH])
         );
         
         node_link southOut (
-            .up(nodes_h[EDGE_SOUTH].nodes_w[j].south_up),
+            .up(nodes_h[EDGE_SOUTH].nodes_w[j].ports_up[SOUTH]),
             .down(south_down[j])
         );
         
         node_link southIn (
             .up(south_up[j]),
-            .down(nodes_h[EDGE_SOUTH].nodes_w[j].south_down)
+            .down(nodes_h[EDGE_SOUTH].nodes_w[j].ports_down[SOUTH])
         );
     end
     endgenerate
