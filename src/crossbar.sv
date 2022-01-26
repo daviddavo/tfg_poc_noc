@@ -21,12 +21,12 @@ module crossbar #(
           parameter PORTS = 2,
           parameter WIDTH = 8
           )(
-            input [WIDTH-1:0]        data_i[PORTS],
-            input [PORTS-1:0]        dest[PORTS],
-            input            dest_en[PORTS],
+            input [WIDTH-1:0]           data_i[PORTS],
+            input [$clog2(PORTS)-1:0] dest[PORTS],
+            input                       dest_en[PORTS],
 
             output logic [WIDTH-1:0] data_o[PORTS],
-            output logic [PORTS-1:0] ack
+            output logic ack[PORTS]
             );
 
    always_comb begin 
@@ -34,6 +34,7 @@ module crossbar #(
 
       // First resetting to 0
       for ( int j = 0; j < PORTS; j++ ) begin
+        ack[j] = 0;
         used[j] = 0;
         data_o[j] = 0;
       end

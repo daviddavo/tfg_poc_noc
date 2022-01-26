@@ -1,6 +1,6 @@
 `define MESH_WIDTH 2
 `define MESH_HEIGHT 2
-`define FLIT_WIDTH 8
+`define FLIT_WIDTH 16
 
 `define MESH_ADDR_X $clog2(`MESH_HEIGHT+2)
 `define MESH_ADDR_Y $clog2(`MESH_WIDTH+2)
@@ -8,7 +8,7 @@
 `define FLIT_ADDR_WIDTH MESH_ADDR_X+MESH_ADDR_Y
 
 `define NODE_PORTS 4
-typedef enum { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } dir_t;
+enum [1:0] { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } e_dir;
 
 typedef enum logic[1:0]
 {
