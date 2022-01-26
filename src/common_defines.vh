@@ -8,7 +8,7 @@
 `define FLIT_ADDR_WIDTH MESH_ADDR_X+MESH_ADDR_Y
 
 `define NODE_PORTS 4
-enum [1:0] { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } e_dir;
+typedef enum logic [1:0] { NORTH = 0, SOUTH = 1, EAST = 2, WEST = 3 } e_dir;
 
 typedef enum logic[1:0]
 {

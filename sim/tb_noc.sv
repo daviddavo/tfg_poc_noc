@@ -18,41 +18,64 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define CB_PORTS 4
-`define CB_WIDTH 8
+`define MESH_HEIGHT 1
+`define MESH_WIDTH 2
 
-module tb_noc;   
-    reg [`CB_PORTS-1:0] dest[`CB_PORTS];
-    reg [`CB_PORTS-1:0] ack[`CB_PORTS];
-    reg [`CB_WIDTH-1:0] data_i[`CB_PORTS];
-    reg [`CB_WIDTH-1:0] data_o[`CB_PORTS];
+module tb_noc;
+    flit_t flit;
+    control_hdr_t hdr;
+    logic clk, rst;
     
+    // node_port ports_up[4]();
+
+//    node_port west_up[`MESH_HEIGHT]();
+//    node_port west_down[`MESH_HEIGHT]();
+
+//    node_port east_up[`MESH_HEIGHT]();
+//    node_port east_down[`MESH_HEIGHT]();
     
-    // Clock generation
-    // always #5 clk = ~clk;
+//    node_port north_up [`MESH_WIDTH]();
+//    node_port north_down [`MESH_WIDTH]();
+
+//    node_port south_up[`MESH_WIDTH] ();
+//    node_port south_down[`MESH_WIDTH]() ;
     
-    crossbar #(
-        .PORTS(`CB_PORTS),
-        .WIDTH(`CB_WIDTH)
-    ) cb (.*);
-                
-    initial begin      
-        for (int i = 0; i < `CB_PORTS; i++)
-        begin
-            data_i[i] <= `CB_WIDTH'b0;
-            dest[i] <= `CB_PORTS'b0;
-        end
+//    mesh #(`MESH_HEIGHT, `MESH_WIDTH) mesh (.*);
+
+    node_port ports_up[4] ();
+    node_port ports_down[4] ();
+    node n (.*);
+    
+    initial begin
+        rst = 1;
+        clk = 0;
         
-        #5 data_i[0] <= `CB_WIDTH'h42;
-           data_i[1] <= `CB_WIDTH'h20;
-        #5 dest[0] <= 'b0001;
-        #5 dest[0] <= 'b0010;
-        #5 dest[0] <= 'b0100;
-        #5 dest[0] <= 'b1000;
-        #5 dest[0] <= 'b1111;
-        #5 dest[1] <= 'b0101;
-        #5 dest[0] <= 'b1011;
+        // i is NoT A CoNStANT >:(
+        // so we have to do it manually
+        ports_up[NORTH].ack = 1;
+        ports_up[EAST].ack = 1;
         
+        // forever #5 clk = ~clk;
+        #10 rst = 0;
+
+        // Keep in the same line, but go EAST
+        hdr.dst_addr.x = 1;
+        hdr.dst_addr.y = `MESH_WIDTH+1;
+        hdr.tail_length = 3;
+        
+        ports_down[WEST].flit.flit_type = HEADER;
+        ports_down[WEST].flit.payload = hdr;
+        ports_down[WEST].enable = 1;
+        $strobe("> ack[WEST] is %b", ports_down[WEST].ack);
+        $strobe("> enable[EAST] is %b", ports_up[EAST].ack);
+        $strobe("> dest[WEST] is %s", n.dest[WEST]);
+        $strobe("> bp_data_i[EAST] is %b", n.bp_data_i[EAST]);
+        $strobe("> bp_data_o[WEST] is %b", n.bp_data_o[WEST]); 
+        
+        #10
+        // hdr.dst_addr.x = 0;
+        // hdr.dst_addr.y = 0;
+
         #100 $finish;
     end
     

@@ -81,60 +81,50 @@ module node #(
    
    // Definitions
    localparam PORTS = 4;
-   typedef enum        { IDLE, ESTABLISHED } state_t;
+   typedef enum logic [1:0] { IDLE, ESTABLISHED } e_state;
    
    // Crossbar things
    // dest[NORTH] = EAST -> NORTH input is connected to EAST
    var e_dir dest[PORTS];
    logic               dest_en[PORTS];
    logic cb_ack[PORTS];
-   // TODO: Use `FLIT_WIDTH
-   logic [$bits(flit_t):0] data_i[PORTS];
-   logic [$bits(flit_t):0] data_o[PORTS];
+   
+   // `FLIT_WIDTH + enable + ack
+   localparam CB_WIDTH = $bits(flit_t)+1;
+   logic [CB_WIDTH-1:0] data_i[PORTS];
+   logic                bp_data_i[PORTS];
+   logic [CB_WIDTH-1:0] data_o[PORTS];
+   logic                bp_data_o[PORTS];
    
    // Node state
-   reg                     state[PORTS];
+   var e_state state[PORTS];
    var e_dir         dest_reg[PORTS];
    
-   crossbar #(
+   crossbar_bp #(
               .PORTS(PORTS),
-              .WIDTH($bits(flit_t)+1)
+              .WIDTH(CB_WIDTH)
               ) cb (
                     // Input
                     .data_i(data_i),
+                    .bp_i(bp_data_i),
                     .dest(dest),
                     .dest_en(dest_en),
                     // Output
                     .data_o(data_o),
+                    .bp_o(bp_data_o),
                     .ack(cb_ack)
                     );
    
-   logic                   bp_data_i[PORTS];
-   logic                   bp_data_o[PORTS];
-   // Backpressure crossbar
-   crossbar #(
-              .PORTS(PORTS),
-              .WIDTH(1)
-              ) cbback (
-                        // Input
-                        .data_i(bp_data_i),
-                        .dest(dest),
-                        .dest_en(cb_ack),
-                        .data_o(bp_data_o),
-                        .ack()
-                        );
-   
-   // Connect crossbar to data input/output
    genvar                  gi;
    generate
+      // Connect crossbar to data input/output
       for (gi = 0; gi < 4; gi++) begin
          // flits and enable crossbar
          assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
-         assign { ports_up[gi].flit, ports_up[gi].enable} = data_o[gi];
+         assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
          
-         // ports_down[gi].ack = ports_up[dest[gi]].ack;
-         assign ports_down[gi].ack = bp_data_o[gi]; 
          assign bp_data_i[gi] = ports_up[gi].ack;
+         assign ports_down[gi].ack = bp_data_o[gi]; 
       end
 
       for (gi = 0; gi < 4; gi++) begin
@@ -147,7 +137,7 @@ module node #(
                case (state[gi])
                  IDLE:
                    // If there is a header trying to enter and the comb logic gave us the ack
-                   if (ports_down[gi].enable && flit.flit_type == HEADER && ports_down[gi].ack) begin                      
+                   if (ports_up[gi].enable && flit.flit_type == HEADER && ports_down[gi].ack) begin                      
                       state[gi] <= ESTABLISHED;
                       dest_reg[gi] <= dest[gi];
                    end
