@@ -23,7 +23,7 @@
 
 module tb_noc;
     flit_t flit;
-    control_hdr_t hdr;
+    flit_hdr_t hdr;
     logic clk, rst;
     
     // node_port ports_up[4]();
@@ -46,6 +46,8 @@ module tb_noc;
     node_port ports_down[4] ();
     node n (.*);
     
+    always #5 clk = ~clk;
+    
     initial begin
         rst = 1;
         clk = 0;
@@ -59,7 +61,6 @@ module tb_noc;
         ports_up[EAST].ack = 1;
         ports_up[WEST].ack = 1;
         
-        // forever #5 clk = ~clk;
         #10 rst = 0;
 
         // Keep in the same line, but go EAST
@@ -90,6 +91,13 @@ module tb_noc;
         ports_down[NORTH].flit.flit_type = HEADER;
         ports_down[NORTH].flit.payload = hdr;
         ports_down[NORTH].enable = 1;
+        
+        $display("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack);
+        $strobe("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack); 
+        assert(ports_down[NORTH].ack);
+        
+        #30
+        ports_down[WEST].flit.flit_type = TAIL;
 
         #100 $finish;
     end

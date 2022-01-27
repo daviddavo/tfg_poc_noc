@@ -156,7 +156,7 @@ module node #(
          always_comb begin
             // Common signals and defaults
             automatic flit_t flit = ports_down[gi].flit;
-            automatic control_hdr_t hdr = flit.payload;
+            automatic flit_hdr_t hdr = flit.payload;
             dest[gi] = NORTH;
             dest_en[gi] = 0; // Esto está haciendo que haya un bucle infinito??
             

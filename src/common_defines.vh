@@ -37,7 +37,7 @@ typedef struct packed
 {
     addr_t dst_addr; // Destination address
     logic [`FLIT_TAIL_LENGTH_WIDTH-1:0] tail_length; // Length in bits of the tail flit
-} control_hdr_t;
+} flit_hdr_t;
 
 // if ($bits(control_hdr_t) > `FLIT_DATA_WIDTH) begin
 //     $error("%m ** Illegal flit width ** Control_header size is %d, Flit width is %d", $bits(control_hdr_t), `FLIT_WIDTH); 
