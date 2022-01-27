@@ -131,7 +131,7 @@ module node #(
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
             end else if (clk) begin
-               flit_t flit = ports_down[gi].flit;
+               automatic flit_t flit = ports_down[gi].flit;
                case (state[gi])
                  IDLE:
                    // If there is a header trying to enter and the comb logic gave us the ack
@@ -155,8 +155,8 @@ module node #(
          // ports_down[gi].ack, ¿creando un bucle infinito?
          always_comb begin
             // Common signals and defaults
-            flit_t flit = ports_down[gi].flit;
-            control_hdr_t hdr = flit.payload;
+            automatic flit_t flit = ports_down[gi].flit;
+            automatic control_hdr_t hdr = flit.payload;
             dest[gi] = NORTH;
             dest_en[gi] = 0; // Esto está haciendo que haya un bucle infinito??
             
