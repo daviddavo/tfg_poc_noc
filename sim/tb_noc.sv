@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -52,8 +52,12 @@ module tb_noc;
         
         // i is NoT A CoNStANT >:(
         // so we have to do it manually
+        
+        // every port is willing to receive data
         ports_up[NORTH].ack = 1;
+        ports_up[SOUTH].ack = 1;
         ports_up[EAST].ack = 1;
+        ports_up[WEST].ack = 1;
         
         // forever #5 clk = ~clk;
         #10 rst = 0;
@@ -63,6 +67,13 @@ module tb_noc;
         hdr.dst_addr.y = `MESH_WIDTH+1;
         hdr.tail_length = 3;
         
+        ports_down[NORTH].flit = 0;
+        ports_down[NORTH].enable = 0;
+        ports_down[SOUTH].flit = 0;
+        ports_down[SOUTH].enable = 0;
+        ports_down[EAST].flit = 0;
+        ports_down[EAST].enable = 0;
+        
         ports_down[WEST].flit.flit_type = HEADER;
         ports_down[WEST].flit.payload = hdr;
         ports_down[WEST].enable = 1;
@@ -71,10 +82,14 @@ module tb_noc;
         $strobe("> dest[WEST] is %s", n.dest[WEST]);
         $strobe("> bp_data_i[EAST] is %b", n.bp_data_i[EAST]);
         $strobe("> bp_data_o[WEST] is %b", n.bp_data_o[WEST]); 
-        
+                
         #10
-        // hdr.dst_addr.x = 0;
-        // hdr.dst_addr.y = 0;
+        // Going SOUTH
+        hdr.dst_addr.x = 2;
+        hdr.dst_addr.y = 1;
+        ports_down[NORTH].flit.flit_type = HEADER;
+        ports_down[NORTH].flit.payload = hdr;
+        ports_down[NORTH].enable = 1;
 
         #100 $finish;
     end

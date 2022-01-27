@@ -42,9 +42,9 @@ module node_link(
                  node_port.up up,
                  node_port.down down
                  );
-   assign down.flit = up.flit;
-   assign down.enable = up.enable;
-   assign up.ack = down.ack;
+   assign up.flit = down.flit;
+   assign up.enable = down.enable;
+   assign down.ack = up.ack;
 endmodule
 
 function e_dir dimensional_order_routing(int x, int y, addr_t dst);
@@ -54,7 +54,7 @@ function e_dir dimensional_order_routing(int x, int y, addr_t dst);
    if (dst.y == y) begin
       if (dst.x == x) begin
          // This should not happen
-         $warning("Illegal state: Node received flit with himself as the destination");
+         $display("Illegal state: Node received flit with himself as the destination");
       end else if (dst.x > x) begin
          return SOUTH;
       end else begin
@@ -123,6 +123,7 @@ module node #(
          assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
          assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
          
+         // ack for way back crossbar
          assign bp_data_i[gi] = ports_up[gi].ack;
          assign ports_down[gi].ack = bp_data_o[gi]; 
       end
@@ -137,7 +138,7 @@ module node #(
                case (state[gi])
                  IDLE:
                    // If there is a header trying to enter and the comb logic gave us the ack
-                   if (ports_up[gi].enable && flit.flit_type == HEADER && ports_down[gi].ack) begin                      
+                   if (ports_down[gi].ack && flit.flit_type == HEADER) begin                      
                       state[gi] <= ESTABLISHED;
                       dest_reg[gi] <= dest[gi];
                    end
@@ -152,37 +153,27 @@ module node #(
             end
          end
          
+         // Creo que la simulación se atasca porque esto se activa cuando cambia
+         // ports_down[gi].ack, ¿creando un bucle infinito?
          always_comb begin
             // Common signals and defaults
             flit_t flit = ports_down[gi].flit;
             control_hdr_t hdr = flit.payload;
-            dest_en[gi] = 0;
+            dest[gi] = NORTH;
+            dest_en[gi] = 0; // Esto está haciendo que haya un bucle infinito??
             
             case( state[gi] )
               IDLE:
-                if (flit.flit_type == HEADER)
-                  begin
-                     dest[gi] = dimensional_order_routing(X, Y, hdr.dst_addr);
-                     dest_en[gi] = 1;
-                     
-                     // If the crossbar signals us ok
-                     if (cb_ack[gi]) begin
-                        // We try to connect to the next router
-                        // ports_up[dest[gi]].enable = 1;
-                        
-                        // ports_down[gi].ack = ports_up[dest[gi]].ack;
-                     end
-                  end 
+                if (ports_down[gi].enable && flit.flit_type == HEADER) begin
+                   dest[gi] = dimensional_order_routing(X, Y, hdr.dst_addr); // <- always_comb on 'dest_reg[gi]' did not result in combinational logic
+                   dest_en[gi] = 1;
+                end 
               ESTABLISHED:
                 begin
                    dest[gi] = dest_reg[gi];
                    dest_en[gi] = 1;
-                   
-                   // ports_up[dest[gi]].enable = 1;
-                   // ports_down[gi].ack = 1;
                 end
             endcase
-            
             // assert (state[gi] == ESTABLISHED -> ports_up[dest[gi]].ack);
          end
       end
