@@ -46,6 +46,7 @@ module crossbar_bp #(
         if (dest_en[i] && !used[dest[i]]) begin
           ack[i] = 1;
           used[dest[i]] = 1;
+          
           data_o[dest[i]] = data_i[i];
           bp_o[i] = bp_i[dest[i]];
         end

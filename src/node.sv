@@ -48,8 +48,6 @@ module node_link(
 endmodule
 
 function e_dir dimensional_order_routing(int x, int y, addr_t dst);
-   // TODO: Do this
-   
    // This is the desired column
    if (dst.y == y) begin
       if (dst.x == x) begin
@@ -67,7 +65,6 @@ function e_dir dimensional_order_routing(int x, int y, addr_t dst);
    end
 endfunction
 
-// TODO: Parameter con su pos dentor de la red
 module node #(
               parameter X = 1,
               parameter Y = 1
@@ -118,7 +115,7 @@ module node #(
    genvar                  gi;
    generate
       // Connect crossbar to data input/output
-      for (gi = 0; gi < 4; gi++) begin
+      for (gi = 0; gi < PORTS; gi++) begin
          // flits and enable crossbar
          assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
          assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
@@ -128,7 +125,7 @@ module node #(
          assign ports_down[gi].ack = bp_data_o[gi]; 
       end
 
-      for (gi = 0; gi < 4; gi++) begin
+      for (gi = 0; gi < PORTS; gi++) begin
          always_ff @ (posedge clk, posedge rst) begin
             if (rst) begin
                state[gi] <= IDLE;
@@ -144,6 +141,7 @@ module node #(
                    end
                  ESTABLISHED:
                    begin
+                      // Free resources
                       if (flit.flit_type == TAIL) begin
                          state[gi] <= IDLE;
                          dest_reg[gi] <= NORTH;
