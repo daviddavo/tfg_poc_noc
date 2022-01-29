@@ -18,88 +18,90 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-`define MESH_HEIGHT 1
+`define MESH_HEIGHT 2
 `define MESH_WIDTH 2
 
+function flit_t build_header(int dst_x, int dst_y);
+    flit_hdr_t hdr = '{ '{dst_x, dst_y}, 0};
+    return '{ HEADER, hdr };
+endfunction
+
 module tb_noc;
-    flit_t flit;
-    flit_hdr_t hdr;
     logic clk, rst;
+
+    node_port west_up[`MESH_HEIGHT]();
+    node_port west_down[`MESH_HEIGHT]();
+    node_port east_up[`MESH_HEIGHT]();
+    node_port east_down[`MESH_HEIGHT]();    
+    node_port north_up [`MESH_WIDTH]();
+    node_port north_down [`MESH_WIDTH]();
+    node_port south_up[`MESH_WIDTH] ();
+    node_port south_down[`MESH_WIDTH]() ;
     
-    // node_port ports_up[4]();
-
-//    node_port west_up[`MESH_HEIGHT]();
-//    node_port west_down[`MESH_HEIGHT]();
-
-//    node_port east_up[`MESH_HEIGHT]();
-//    node_port east_down[`MESH_HEIGHT]();
-    
-//    node_port north_up [`MESH_WIDTH]();
-//    node_port north_down [`MESH_WIDTH]();
-
-//    node_port south_up[`MESH_WIDTH] ();
-//    node_port south_down[`MESH_WIDTH]() ;
-    
-//    mesh #(`MESH_HEIGHT, `MESH_WIDTH) mesh (.*);
-
-    node_port ports_up[4] ();
-    node_port ports_down[4] ();
-    node n (.*);
+    mesh #(`MESH_HEIGHT, `MESH_WIDTH) mesh (.*);
     
     always #5 clk = ~clk;
+    
+    generate
+        genvar gi;
+        for ( gi = 0; gi < `MESH_HEIGHT; gi++) begin
+            assign west_up[gi].ack = 1;
+            assign east_up[gi].ack = 1;
+        end
+        
+        for ( gi = 0; gi < `MESH_WIDTH; gi++) begin
+            assign north_up[gi].ack = 1;
+            assign south_up[gi].ack = 1;
+        end
+    endgenerate
     
     initial begin
         rst = 1;
         clk = 0;
         
-        // i is NoT A CoNStANT >:(
-        // so we have to do it manually
-        
-        // every port is willing to receive data
-        ports_up[NORTH].ack = 1;
-        ports_up[SOUTH].ack = 1;
-        ports_up[EAST].ack = 1;
-        ports_up[WEST].ack = 1;
-        
         #10 rst = 0;
 
         // Keep in the same line, but go EAST
-        hdr.dst_addr.x = 1;
-        hdr.dst_addr.y = `MESH_WIDTH+1;
-        hdr.tail_length = 3;
+        west_down[0].flit = build_header(1, `MESH_WIDTH+1);
+        west_down[0].enable = 1;
         
-        ports_down[NORTH].flit = 0;
-        ports_down[NORTH].enable = 0;
-        ports_down[SOUTH].flit = 0;
-        ports_down[SOUTH].enable = 0;
-        ports_down[EAST].flit = 0;
-        ports_down[EAST].enable = 0;
-        
-        ports_down[WEST].flit.flit_type = HEADER;
-        ports_down[WEST].flit.payload = hdr;
-        ports_down[WEST].enable = 1;
-        $strobe("> ack[WEST] is %b", ports_down[WEST].ack);
-        $strobe("> enable[EAST] is %b", ports_up[EAST].ack);
-        $strobe("> dest[WEST] is %s", n.dest[WEST]);
-        $strobe("> bp_data_i[EAST] is %b", n.bp_data_i[EAST]);
-        $strobe("> bp_data_o[WEST] is %b", n.bp_data_o[WEST]); 
-                
         #10
-        // Going SOUTH
-        hdr.dst_addr.x = 2;
-        hdr.dst_addr.y = 1;
-        ports_down[NORTH].flit.flit_type = HEADER;
-        ports_down[NORTH].flit.payload = hdr;
-        ports_down[NORTH].enable = 1;
+        assert(west_down[0].ack);
+        assert(east_up[0].enable && east_up[0].flit == west_down[0].flit);
         
-        $display("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack);
-        $strobe("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack); 
-        assert(ports_down[NORTH].ack);
+        // Keep in the same column, but go SOUTH
+        north_down[0].flit = build_header(`MESH_HEIGHT+1, 1);
+        north_down[0].enable = 1;
         
-        #30
-        ports_down[WEST].flit.flit_type = TAIL;
+        // TODO: The simulation gets stuck when two flits are entered to the network the same cycle
+        east_down[0].flit = build_header(1, 0);
+        east_down[0].enable = 1;
+        #10
+        assert(north_down[0].ack);
+        assert(south_up[0].enable && north_up[0].flit == south_down[0].flit);
+//        ports_down[WEST].enable = 1;
+//        $strobe("> ack[WEST] is %b", ports_down[WEST].ack);
+//        $strobe("> enable[EAST] is %b", ports_up[EAST].ack);
+//        $strobe("> dest[WEST] is %s", n.dest[WEST]);
+//        $strobe("> bp_data_i[EAST] is %b", n.bp_data_i[EAST]);
+//        $strobe("> bp_data_o[WEST] is %b", n.bp_data_o[WEST]); 
+                
+//        #10
+//        // Going SOUTH
+//        hdr.dst_addr.x = 2;
+//        hdr.dst_addr.y = 1;
+//        ports_down[NORTH].flit.flit_type = HEADER;
+//        ports_down[NORTH].flit.payload = hdr;
+//        ports_down[NORTH].enable = 1;
+        
+//        $display("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack);
+//        $strobe("> ports_down[NORTH].ack is %b",ports_down[NORTH].ack); 
+//        assert(ports_down[NORTH].ack);
+        
+//        #30
+//        ports_down[WEST].flit.flit_type = TAIL;
 
-        #100 $finish;
+        #20 $finish;
     end
     
     

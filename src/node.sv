@@ -39,14 +39,17 @@ interface node_port;
 endinterface
 
 module node_link(
-                 node_port.up up,
-                 node_port.down down
+                 // Input
+                 node_port.down down,
+                 // Output
+                 node_port.up up
                  );
    assign up.flit = down.flit;
    assign up.enable = down.enable;
    assign down.ack = up.ack;
 endmodule
 
+// Priority: HORIZONTAL > VERTICAL
 function e_dir dimensional_order_routing(int x, int y, addr_t dst);
    // This is the desired column
    if (dst.y == y) begin
@@ -92,6 +95,7 @@ module node #(
    logic                bp_data_i[PORTS];
    logic [CB_WIDTH-1:0] data_o[PORTS];
    logic                bp_data_o[PORTS];
+   logic                used[PORTS];
    
    // Node state
    var e_state state[PORTS];
@@ -130,6 +134,7 @@ module node #(
             if (rst) begin
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
+               used[gi] <= 0;
             end else if (clk) begin
                automatic flit_t flit = ports_down[gi].flit;
                case (state[gi])
@@ -138,33 +143,36 @@ module node #(
                    if (ports_down[gi].ack && flit.flit_type == HEADER) begin                      
                       state[gi] <= ESTABLISHED;
                       dest_reg[gi] <= dest[gi];
+                      used[dest[gi]] <= 1;
                    end
                  ESTABLISHED:
                    begin
+                      // If we received the ack in the past, we keep it while we are stablished
+                      noSteal: assert(ports_down[gi].ack);
+                      
                       // Free resources
                       if (flit.flit_type == TAIL) begin
                          state[gi] <= IDLE;
                          dest_reg[gi] <= NORTH;
+                         used[dest_reg[gi]] <= 0;
                       end
                    end
                endcase
             end
          end
          
-         // Creo que la simulación se atasca porque esto se activa cuando cambia
-         // ports_down[gi].ack, ¿creando un bucle infinito?
          always_comb begin
             // Common signals and defaults
             automatic flit_t flit = ports_down[gi].flit;
             automatic flit_hdr_t hdr = flit.payload;
             dest[gi] = NORTH;
-            dest_en[gi] = 0; // Esto está haciendo que haya un bucle infinito??
+            dest_en[gi] = 0;
             
             case( state[gi] )
               IDLE:
                 if (ports_down[gi].enable && flit.flit_type == HEADER) begin
-                   dest[gi] = dimensional_order_routing(X, Y, hdr.dst_addr); // <- always_comb on 'dest_reg[gi]' did not result in combinational logic
-                   dest_en[gi] = 1;
+                   dest[gi] = dimensional_order_routing(X, Y, hdr.dst_addr);
+                   dest_en[gi] = !used[dest[gi]]; // Only if dest[gi] is not used
                 end 
               ESTABLISHED:
                 begin
@@ -172,7 +180,7 @@ module node #(
                    dest_en[gi] = 1;
                 end
             endcase
-            // assert (state[gi] == ESTABLISHED -> ports_up[dest[gi]].ack);
+            // TODO: assert no two have the same destination allocated (if it is enabled) 
          end
       end
    endgenerate

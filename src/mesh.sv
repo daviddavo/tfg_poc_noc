@@ -67,80 +67,88 @@ module mesh #(
       // Connects node to next node horizontally
       for ( i = 0; i < MESH_HEIGHT; i++) begin
          for ( j = 0; j < MESH_WIDTH-1; j++) begin
-            // West to East
-            node_link west2east (
-                                 .up(nodes_h[i].nodes_w[j].ports_up[WEST]),
-                                 .down(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].ports_down[EAST])
-                                 );
             // East to West
             node_link east2west (
-                                 .up(nodes_h[i].nodes_w[(j+1)%MESH_WIDTH].ports_up[EAST]), 
-                                 .down(nodes_h[i].nodes_w[j].ports_down[WEST])
+                                 .down(nodes_h[i].nodes_w[j].ports_up[EAST]),
+                                 .up(nodes_h[i].nodes_w[j+1].ports_down[WEST])
                                  );
+            // West to East
+            node_link west2east (
+                                .down(nodes_h[i].nodes_w[j+1].ports_up[WEST]),
+                                .up(nodes_h[i].nodes_w[j].ports_down[EAST])
+                                );
          end
       end
       
       // Connects node to next node vertically
       for ( j = 0; j < MESH_WIDTH; j++) begin
          for ( i = 0; i < MESH_HEIGHT-1; i++) begin
-            // North to South
-            node_link north2south (
-                                   .up(nodes_h[i].nodes_w[j].ports_up[NORTH]),
-                                   .down(nodes_h[i+1].nodes_w[j].ports_down[SOUTH])
-                                   );
-            
             // South to North
             node_link south2north (
-                                   .up(nodes_h[i+1].nodes_w[j].ports_up[SOUTH]),
-                                   .down(nodes_h[i].nodes_w[j].ports_down[NORTH])
+                                   .down(nodes_h[i].nodes_w[j].ports_up[SOUTH]),
+                                   .up(nodes_h[i+1].nodes_w[j].ports_down[NORTH])
+                                   );
+
+            // North to South
+            node_link north2south (
+                                   .down(nodes_h[i+1].nodes_w[j].ports_up[NORTH]),
+                                   .up(nodes_h[i].nodes_w[j].ports_down[SOUTH])
                                    );
          end
       end
       
       // Connect east and west edges
       for ( i = 0; i < MESH_HEIGHT; i++) begin
-         node_link westOut (
-                            .up(nodes_h[i].nodes_w[EDGE_WEST].ports_up[WEST]),
-                            .down(west_down[i])
-                            );
-         
-         node_link westIn (
-                           .up(west_up[i]),
-                           .down(nodes_h[i].nodes_w[EDGE_WEST].ports_down[WEST])
-                           );
-         
-         node_link eastOut (
-                            .up(nodes_h[i].nodes_w[EDGE_EAST].ports_up[EAST]),
-                            .down(east_down[i])
-                            );
-         
-         node_link eastIn (
-                           .up(east_up[i]),
-                           .down(nodes_h[i].nodes_w[EDGE_EAST].ports_down[EAST])
-                           );
+            // Conencting west mesh input to west node input
+            node_link westIn (
+                              .down(west_down[i]),
+                              .up(nodes_h[i].nodes_w[EDGE_WEST].ports_down[WEST])
+                              );
+                              
+            // Connecting west node output to west mesh output
+            node_link westOut (
+                              .down(nodes_h[i].nodes_w[EDGE_WEST].ports_up[WEST]),
+                              .up(west_up[i])
+                              );
+                              
+            // Connecting east mesh input to east node input
+            node_link eastIn (
+                             .down(east_down[i]),
+                             .up(nodes_h[i].nodes_w[EDGE_EAST].ports_down[EAST])
+                             );
+                              
+            // Connecting east node output to west mesh output
+            node_link eastOut (
+                               .down(nodes_h[i].nodes_w[EDGE_EAST].ports_up[EAST]),
+                               .up(east_up[i])
+                               );
       end
       
       // Connect north and south edges
       for ( j = 0; j < MESH_WIDTH; j++) begin
-         node_link northOut (
-                             .up(nodes_h[EDGE_NORTH].nodes_w[j].ports_up[NORTH]),
-                             .down(north_down[j])
-                             );
-         
-         node_link northIn (
-                            .up(north_up[j]),
-                            .down(nodes_h[EDGE_NORTH].nodes_w[j].ports_down[NORTH])
-                            );
-         
-         node_link southOut (
-                             .up(nodes_h[EDGE_SOUTH].nodes_w[j].ports_up[SOUTH]),
-                             .down(south_down[j])
-                             );
-         
-         node_link southIn (
-                            .up(south_up[j]),
-                            .down(nodes_h[EDGE_SOUTH].nodes_w[j].ports_down[SOUTH])
-                            );
+            // Connecting north mesh input to north node input
+            node_link northIn (
+                               .down(north_down[j]),
+                               .up(nodes_h[EDGE_NORTH].nodes_w[j].ports_down[NORTH])
+                               );
+                               
+            // Connecting north node output to north mesh output
+            node_link northOut (
+                                .down(nodes_h[EDGE_NORTH].nodes_w[j].ports_up[NORTH]),
+                                .up(north_up[j])
+                                );
+                                
+            // Connecting south mesh input to south node input
+            node_link southIn (
+                               .down(south_down[j]),
+                               .up(nodes_h[EDGE_SOUTH].nodes_w[j].ports_down[SOUTH])
+                               );
+                               
+            // Connecting south node output to south mesh output
+            node_link southOut (
+                                .down(nodes_h[EDGE_SOUTH].nodes_w[j].ports_up[SOUTH]),
+                                .up(south_up[j])
+                                );
       end
    endgenerate
 endmodule
