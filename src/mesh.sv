@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 module mesh #(
-              parameter MESH_HEIGHT = 1,
+              parameter MESH_HEIGHT = 3,
               parameter MESH_WIDTH = 3
               )(
                 // Port List
@@ -55,12 +55,17 @@ module mesh #(
             node_port ports_up[4]();
             node_port ports_down[4]();
             
-            node #(i+1, j+1) node (
-                                   .clk(clk),
-                                   .rst(rst),
-                                   .ports_up(ports_up),
-                                   .ports_down(ports_down)
-                                   );
+            node #(
+                   .X(i+1),
+                   .Y(j+1),
+                   .X_EDGE(MESH_HEIGHT),
+                   .Y_EDGE(MESH_WIDTH)
+                   ) node (
+                           .clk(clk),
+                           .rst(rst),
+                           .ports_up(ports_up),
+                           .ports_down(ports_down)
+                           );
          end
       end
       

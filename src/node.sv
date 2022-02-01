@@ -50,7 +50,7 @@ module node_link(
 endmodule
 
 // Priority: HORIZONTAL > VERTICAL
-function e_dir dimensional_order_routing(int x, int y, addr_t dst);
+function e_dir dimensional_order_routing_h(int x, int y, addr_t dst);
    // This is the desired column
    if (dst.y == y) begin
       if (dst.x == x) begin
@@ -68,9 +68,37 @@ function e_dir dimensional_order_routing(int x, int y, addr_t dst);
    end
 endfunction
 
+function e_dir dimensional_order_routing_v(int x, int y, addr_t dst);
+    if (dst.x == x) begin
+        if (dst.y == y) begin
+            $display("Illegal state: Node received flit with himself as the destination");
+        end else if (dst.x > x) begin
+            return EAST;
+        end else begin
+            return WEST;
+        end
+    end else if (dst. x > x) begin
+        return SOUTH;
+    end else begin
+        return NORTH;
+    end
+endfunction
+
+// DOR but only in the directions that don't make the package fall out of the edge
+function e_dir dimensional_order_routing_edgeaware(int x, int y, int x_max, int y_max, addr_t dst);
+    // If we are on an horizontal (NORTH | SOUTH) edge, we do horizontal prioritized DOR
+    if ( x == 1 || x == x_max )
+        return dimensional_order_routing_h(x, y, dst);
+    // Otherwise we do vertically prioritized DOR    
+    else
+        return dimensional_order_routing_v(x, y, dst);
+endfunction
+
 module node #(
               parameter X = 1,
-              parameter Y = 1
+              parameter Y = 1,
+              parameter X_EDGE = 1,
+              parameter Y_EDGE = 1
               ) (
                  input clk,
                  input rst,
@@ -171,7 +199,7 @@ module node #(
             case( state[gi] )
               IDLE:
                 if (ports_down[gi].enable && flit.flit_type == HEADER) begin
-                   dest[gi] = dimensional_order_routing(X, Y, hdr.dst_addr);
+                   dest[gi] = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
                    dest_en[gi] = !used[dest[gi]]; // Only if dest[gi] is not used
                 end 
               ESTABLISHED:

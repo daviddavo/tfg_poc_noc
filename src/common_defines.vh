@@ -1,9 +1,9 @@
-`define MESH_WIDTH 2
-`define MESH_HEIGHT 2
+`define MAX_MESH_WIDTH 6
+`define MAX_MESH_HEIGHT 6
 `define FLIT_WIDTH 16
 
-`define MESH_ADDR_X $clog2(`MESH_HEIGHT+2)
-`define MESH_ADDR_Y $clog2(`MESH_WIDTH+2)
+`define MESH_ADDR_X $clog2(`MAX_MESH_HEIGHT+2)
+`define MESH_ADDR_Y $clog2(`MAX_MESH_WIDTH+2)
 // TODO: Assert equals $clog2(`FLIT_ADDR_SPACE)
 `define FLIT_ADDR_WIDTH MESH_ADDR_X+MESH_ADDR_Y
 
