@@ -18,36 +18,6 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-interface node_port;
-   flit_t flit;
-   logic enable;
-   
-   // Backpressure
-   logic ack;
-   
-   modport down (
-                 input  flit,
-                 input  enable, 
-                 output ack
-                 );
-   
-   modport up (
-               input  ack,
-               output flit,
-               output enable
-               );
-endinterface
-
-module node_link(
-                 // Input
-                 node_port.down down,
-                 // Output
-                 node_port.up up
-                 );
-   assign up.flit = down.flit;
-   assign up.enable = down.enable;
-   assign down.ack = up.ack;
-endmodule
 
 // Priority: HORIZONTAL > VERTICAL
 function e_dir dimensional_order_routing_h(int x, int y, addr_t dst);
@@ -123,17 +93,19 @@ module node #(
    logic                bp_data_i[PORTS];
    logic [CB_WIDTH-1:0] data_o[PORTS];
    logic                bp_data_o[PORTS];
-   logic                used[PORTS];
+   logic                allocated[PORTS];
    
    // Node state
    var e_state state[PORTS];
    var e_dir         dest_reg[PORTS];
    
-   crossbar_bp #(
+   crossbar_rr #(
               .PORTS(PORTS),
               .WIDTH(CB_WIDTH)
               ) cb (
                     // Input
+                    .clk(clk), 
+                    .rst(rst),
                     .data_i(data_i),
                     .bp_i(bp_data_i),
                     .dest(dest),
@@ -162,7 +134,7 @@ module node #(
             if (rst) begin
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
-               used[gi] <= 0;
+               allocated[gi] <= 0;
             end else if (clk) begin
                automatic flit_t flit = ports_down[gi].flit;
                case (state[gi])
@@ -171,7 +143,7 @@ module node #(
                    if (ports_down[gi].ack && flit.flit_type == HEADER) begin                      
                       state[gi] <= ESTABLISHED;
                       dest_reg[gi] <= dest[gi];
-                      used[dest[gi]] <= 1;
+                      allocated[dest[gi]] <= 1;
                    end
                  ESTABLISHED:
                    begin
@@ -182,7 +154,7 @@ module node #(
                       if (flit.flit_type == TAIL) begin
                          state[gi] <= IDLE;
                          dest_reg[gi] <= NORTH;
-                         used[dest_reg[gi]] <= 0;
+                         allocated[dest_reg[gi]] <= 0;
                       end
                    end
                endcase
@@ -200,7 +172,7 @@ module node #(
               IDLE:
                 if (ports_down[gi].enable && flit.flit_type == HEADER) begin
                    dest[gi] = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                   dest_en[gi] = !used[dest[gi]]; // Only if dest[gi] is not used
+                   dest_en[gi] = !allocated[dest[gi]]; // Only if dest[gi] is not used
                 end 
               ESTABLISHED:
                 begin
