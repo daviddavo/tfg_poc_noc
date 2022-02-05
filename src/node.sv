@@ -18,6 +18,7 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
+import noc_types::*;
 
 // Priority: HORIZONTAL > VERTICAL
 function e_dir dimensional_order_routing_h(int x, int y, addr_t dst);
@@ -68,17 +69,18 @@ module node #(
               parameter X = 1,
               parameter Y = 1,
               parameter X_EDGE = 1,
-              parameter Y_EDGE = 1
+              parameter Y_EDGE = 1,
+              localparam PORTS = 4
               ) (
                  input clk,
                  input rst,
 
-                 node_port.up ports_up[4],
-                 node_port.down ports_down[4]
+                 node_port.up ports_up[PORTS],
+                 node_port.down ports_down[PORTS]
                  );
    
+   
    // Definitions
-   localparam PORTS = 4;
    typedef enum logic [1:0] { IDLE, ESTABLISHED } e_state;
    
    // Crossbar things
