@@ -116,17 +116,42 @@ class Packet;
     endfunction
 endclass: Packet
 
+class Sender;
+    virtual node_port.down port;
+    int x; int y;
+
+    function new(virtual node_port.down port, int x, int y);
+        this.port = port;
+        this.x = this.y;
+    endfunction: new
+endclass: Sender
+
 module tb_noc;
     logic clk, rst;
-
+    
+    if_wrapper ports ();
+    
+    node_port north_up [`MESH_WIDTH]();
+    node_port north_down [`MESH_WIDTH]();
+    node_port south_up[`MESH_WIDTH]();
+    node_port south_down[`MESH_WIDTH]();
+    node_port east_up[`MESH_HEIGHT]();
+    node_port east_down[`MESH_HEIGHT]();
     node_port west_up[`MESH_HEIGHT]();
     node_port west_down[`MESH_HEIGHT]();
-    node_port east_up[`MESH_HEIGHT]();
-    node_port east_down[`MESH_HEIGHT]();    
-    node_port north_up[`MESH_WIDTH]();
-    node_port north_down[`MESH_WIDTH]();
-    node_port south_up[`MESH_WIDTH] ();
-    node_port south_down[`MESH_WIDTH]();
+    
+    virtual node_port.up vnorth_up[`MESH_WIDTH] = north_up;
+    virtual node_port.down vnorth_down[`MESH_WIDTH] = north_down;
+    virtual node_port.up vsouth_up[`MESH_WIDTH] = south_up;
+    virtual node_port.down vsouth_down[`MESH_WIDTH] = south_down;
+    virtual node_port.up veast_up[`MESH_HEIGHT] = east_up;
+    virtual node_port.down veast_down[`MESH_HEIGHT] = east_down;
+    virtual node_port.up vwest_up[`MESH_HEIGHT] = west_up;
+    virtual node_port.down vwest_down[`MESH_HEIGHT] = west_down;
+    
+    // Easier access
+    virtual node_port.down mesh_in[`MESH_WIDTH:0][`MESH_HEIGHT:0];
+    virtual node_port.up mesh_out[`MESH_WIDTH:0][`MESH_HEIGHT:0];
   
     // From generator to dispatcher  
     mailbox src_mbx [int][int];
@@ -193,14 +218,13 @@ module tb_noc;
     task automatic send_packets(int x, int y);
         Packet p;
         flit_t flits[];
-        localparam portn = 0;
         
         forever begin
             int ncycles = 0;
             
             // TODO: Eliminate hardcoding
-            west_down[portn].enable = 0;
-            west_down[portn].flit = 0;
+            mesh_in[x][y].enable = 0;
+            mesh_in[x][y].flit = 0;
             
             src_mbx[x][y].get(p);
             if (p == null) break; // Exit when no more data available
@@ -209,11 +233,11 @@ module tb_noc;
             $display("> Sending from %0d, %0d: %s", x, y, p.toString());
             
             // Try sending header
-            west_down[portn].enable = 1;
-            west_down[portn].flit = p.flits[0];
+            mesh_in[x][y].enable = 1;
+            mesh_in[x][y].flit = p.flits[0];
             
             // Wait for ack
-            while (!west_down[portn].ack) begin
+            while (!mesh_in[x][y].ack) begin
                 @(negedge clk);
                 ncycles++;
                 
@@ -222,7 +246,7 @@ module tb_noc;
             end
             
             for (int i = 1; i < p.flits.size; i++) begin
-                west_down[portn].flit = p.flits[i];
+                mesh_in[x][y].flit = p.flits[i];
                 @(negedge clk);
             end            
         end
@@ -243,7 +267,7 @@ module tb_noc;
             logic found = 0;
         
             while (to_wait > 0) begin
-                if (north_up[0].enable && north_up[0].flit.flit_type == HEADER) begin
+                if (mesh_out[x][y].enable && mesh_out[x][y].flit.flit_type == HEADER) begin
                     to_wait = -1;
                 end
                 
@@ -257,8 +281,8 @@ module tb_noc;
             // $display("Receiving packet at %0d,%0d", x, y);
             do begin
                 @(posedge clk);
-                flits.push_back(north_up[0].flit);
-            end while (north_up[0].flit.flit_type != TAIL);
+                flits.push_back(mesh_out[x][y].flit);
+            end while (mesh_out[x][y].flit.flit_type != TAIL);
             
             // TODO: Check that the packet has been sent
             // and print the source and id of the packet
@@ -298,26 +322,38 @@ module tb_noc;
         $display("Finished receiving packets to %0d,%0d", x, y);
     endtask : recv_packets
     
-    always #5 clk = ~clk;
-    
-    // TODO: Assyncly: Process items in mailbox and send packets
-    
-    generate
-        genvar gi;
-        for ( gi = 0; gi < `MESH_HEIGHT; gi++) begin
-            assign west_up[gi].ack = 1;
-            assign east_up[gi].ack = 1;
+    task automatic init_vifaces();        
+        for (int i = 0; i < `MESH_HEIGHT; i++) begin
+            mesh_in[i+1][0] = vwest_down[i];
+            mesh_in[i+1][`MESH_WIDTH] = veast_down[i];
+            
+            mesh_out[i+1][0] = vwest_up[i];
+            mesh_out[i+1][`MESH_WIDTH] = veast_up[i];
+
+            // Accept responses on the outputs            
+            mesh_out[i+1][0].ack = 1;
+            mesh_out[i+1][`MESH_WIDTH].ack = 1;
         end
         
-        for ( gi = 0; gi < `MESH_WIDTH; gi++) begin
-            assign north_up[gi].ack = 1;
-            assign south_up[gi].ack = 1;
+        for (int i = 0; i < `MESH_WIDTH; i++) begin
+            mesh_in[0][i+1] = vnorth_down[i];
+            mesh_in[`MESH_HEIGHT][i+1] = vsouth_down[i];
+            
+            mesh_out[0][i+1] = vnorth_up[i];
+            mesh_out[`MESH_HEIGHT][i+1] = vsouth_up[i];
+            
+            // Accept responses on the outputs
+            mesh_out[0][i+1].ack = 1;
+            mesh_out[`MESH_HEIGHT][i+1].ack = 1;
         end
-    endgenerate
+    endtask: init_vifaces
+
+    always #5 clk = ~clk;
     
     initial begin
         clk = 0;
         
+        init_vifaces();
         init_mbox();
         apply_reset();
 
@@ -327,6 +363,7 @@ module tb_noc;
             // TODO: One per each port
             send_packets(1, 0); // west_edge
             recv_packets(0, 1); // north_edge
+            recv_packets(0, 2); // north_edge
             // wait fork;
         join
         
