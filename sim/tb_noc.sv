@@ -128,8 +128,12 @@ endclass: Sender
 
 module tb_noc;
     logic clk, rst;
+    int nclk = 0;
     
-    if_wrapper ports ();
+    localparam EDGE_NORTH = 0;
+    localparam EDGE_SOUTH = `MESH_HEIGHT+1;
+    localparam EDGE_EAST = `MESH_WIDTH+1;
+    localparam EDGE_WEST = 0;
     
     node_port north_up [`MESH_WIDTH]();
     node_port north_down [`MESH_WIDTH]();
@@ -150,8 +154,8 @@ module tb_noc;
     virtual node_port.down vwest_down[`MESH_HEIGHT] = west_down;
     
     // Easier access
-    virtual node_port.down mesh_in[`MESH_WIDTH:0][`MESH_HEIGHT:0];
-    virtual node_port.up mesh_out[`MESH_WIDTH:0][`MESH_HEIGHT:0];
+    virtual node_port.down mesh_in  [EDGE_EAST:EDGE_WEST][EDGE_SOUTH:EDGE_NORTH];
+    virtual node_port.up   mesh_out [EDGE_EAST:EDGE_WEST][EDGE_SOUTH:EDGE_NORTH];
   
     // From generator to dispatcher  
     mailbox src_mbx [int][int];
@@ -159,6 +163,20 @@ module tb_noc;
     mailbox dst_mbx [int][int];
     
     mesh #(`MESH_HEIGHT, `MESH_WIDTH) DUT (.*);
+    
+    function string pos2portstring(string suf, int x, int y);
+        if (x == 0)
+            return $sformatf("north_%s[%0d]", suf, y-1);
+        else if (x == `MESH_HEIGHT+1)
+            return $sformatf("south_%s[%0d]", suf, y-1);
+        else if (y == 0)
+            return $sformatf("west_%s[%0d]", suf, x-1);
+        else if (y == `MESH_WIDTH+1)
+            return $sformatf("east_%s[%0d]", suf, x-1);
+        else
+            $error("Unknown port at %0d,%0d", x, y);
+            return "";
+    endfunction
     
     task apply_reset();
         rst <= 1;
@@ -191,8 +209,9 @@ module tb_noc;
             Packet pkt = new();
             pkt.randomize();
             pkt.set_src(x, y);
-            src_mbx[x][y].put(pkt);
+            
             dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
+            src_mbx[x][y].put(pkt);
             // $display("Generating... %s", pkt.toString());
         end
     endtask: tryGenPck
@@ -230,7 +249,7 @@ module tb_noc;
             if (p == null) break; // Exit when no more data available
             
             @(negedge clk); // Waiting until clk = 0
-            $display("> Sending from %0d, %0d: %s", x, y, p.toString());
+            $display("> Sending from %0d, %0d at cycle %2d (%0tns): %s", x, y, nclk, $realtime/1000, p.toString());
             
             // Try sending header
             mesh_in[x][y].enable = 1;
@@ -255,7 +274,7 @@ module tb_noc;
     endtask : send_packets
     
     task automatic recv_packets(int x, int y);
-        localparam max_wait = 10;
+        localparam max_wait = 100;
         localparam portn = 0;
         
         Packet to_chk[$];
@@ -266,12 +285,16 @@ module tb_noc;
             int to_wait = max_wait;
             logic found = 0;
         
+            // ---- BEGIN READ FLITS ----
+            // TODO: Remove to_wait and add some kind of event
             while (to_wait > 0) begin
+                @(posedge clk);
                 if (mesh_out[x][y].enable && mesh_out[x][y].flit.flit_type == HEADER) begin
+                    flits.push_back(mesh_out[x][y].flit);
                     to_wait = -1;
+                    break;
                 end
                 
-                @(posedge clk);
                 to_wait--;
             end
             
@@ -283,13 +306,16 @@ module tb_noc;
                 @(posedge clk);
                 flits.push_back(mesh_out[x][y].flit);
             end while (mesh_out[x][y].flit.flit_type != TAIL);
+            // ---- END READ FLITS ----
             
-            // TODO: Check that the packet has been sent
-            // and print the source and id of the packet
-            while (dst_mbx[x][y].try_peek(p) != 0) begin
+            // ---- BEGIN CHECK FLITS ----
+            // to_chk can't be empty (there should always be at least a sent packet to check)
+            while (dst_mbx[x][y].try_peek(p) != 0 || to_chk.size() == 0) begin
                 dst_mbx[x][y].get(p);
                 to_chk.push_back(p);
             end
+            
+            assert(to_chk.size() != 0);
             
             found = 0;
             foreach (to_chk[i]) begin
@@ -312,43 +338,44 @@ module tb_noc;
             end
             
             if (!found) begin
-                $error("< Received unknown packet %p", flits); 
+                automatic flit_hdr_t hdr = flits[0].payload;
+                $error("< Received unknown packet %p at %0d,%0d (%s). Header: %p", flits, x, y, pos2portstring("up", x, y), hdr); 
             end
-            
-            @(posedge clk);
+            // ---- END CHECK FLITS ----
         end
         
-        assert (to_chk.size() == 0) $warning("Exiting while some packets were not received at %0d,%0d", x, y);
+        if (to_chk.size() > 0) $warning("Exiting while some packets were not received at %0d,%0d", x, y);
         $display("Finished receiving packets to %0d,%0d", x, y);
     endtask : recv_packets
     
     task automatic init_vifaces();        
-        for (int i = 0; i < `MESH_HEIGHT; i++) begin
-            mesh_in[i+1][0] = vwest_down[i];
-            mesh_in[i+1][`MESH_WIDTH] = veast_down[i];
+        for (int i = 1; i <= `MESH_HEIGHT; i++) begin
+            mesh_in[i][EDGE_WEST] = vwest_down[i-1];
+            mesh_in[i][EDGE_EAST] = veast_down[i-1];
             
-            mesh_out[i+1][0] = vwest_up[i];
-            mesh_out[i+1][`MESH_WIDTH] = veast_up[i];
+            mesh_out[i][EDGE_WEST] = vwest_up[i-1];
+            mesh_out[i][EDGE_EAST] = veast_up[i-1];
 
             // Accept responses on the outputs            
-            mesh_out[i+1][0].ack = 1;
-            mesh_out[i+1][`MESH_WIDTH].ack = 1;
+            mesh_out[i][EDGE_WEST].ack = 1;
+            mesh_out[i][EDGE_EAST].ack = 1;
         end
         
-        for (int i = 0; i < `MESH_WIDTH; i++) begin
-            mesh_in[0][i+1] = vnorth_down[i];
-            mesh_in[`MESH_HEIGHT][i+1] = vsouth_down[i];
+        for (int i = 1; i <= `MESH_WIDTH; i++) begin
+            mesh_in[EDGE_NORTH][i] = vnorth_down[i-1];
+            mesh_in[EDGE_SOUTH][i] = vsouth_down[i-1];
             
-            mesh_out[0][i+1] = vnorth_up[i];
-            mesh_out[`MESH_HEIGHT][i+1] = vsouth_up[i];
+            mesh_out[EDGE_NORTH][i] = vnorth_up[i-1];
+            mesh_out[EDGE_SOUTH][i] = vsouth_up[i-1];
             
             // Accept responses on the outputs
-            mesh_out[0][i+1].ack = 1;
-            mesh_out[`MESH_HEIGHT][i+1].ack = 1;
+            mesh_out[EDGE_NORTH][i].ack = 1;
+            mesh_out[EDGE_SOUTH][i].ack = 1;
         end
     endtask: init_vifaces
 
     always #5 clk = ~clk;
+    always_ff @(posedge clk) nclk <= nclk + 1;
     
     initial begin
         clk = 0;
@@ -361,10 +388,30 @@ module tb_noc;
         fork
             generate_packets();
             // TODO: One per each port
-            send_packets(1, 0); // west_edge
-            recv_packets(0, 1); // north_edge
-            recv_packets(0, 2); // north_edge
-            // wait fork;
+            begin : gen_threads
+                // The int i in the loop is static, so we need
+                // an automatic aux to be able to use it in multiple threads
+                for (int i = 0; i < `MESH_WIDTH; i++) begin
+                    automatic int aux = i;
+                    fork
+                        send_packets(EDGE_NORTH, aux+1);
+                        send_packets(EDGE_SOUTH, aux+1);
+                        recv_packets(EDGE_NORTH, aux+1);
+                        recv_packets(EDGE_SOUTH, aux+1);
+                    join_none;
+                end
+                
+                for (int i = 0; i < `MESH_HEIGHT; i++) begin
+                    automatic int aux = i;
+                    fork
+                        send_packets(aux+1, EDGE_WEST);
+                        send_packets(aux+1, EDGE_EAST);
+                        recv_packets(aux+1, EDGE_WEST);
+                        recv_packets(aux+1, EDGE_SOUTH);
+                    join_none;
+                end
+                wait fork;
+            end : gen_threads
         join
         
         // Check that there are no more packets to process

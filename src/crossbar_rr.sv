@@ -58,7 +58,7 @@ module crossbar_rr #(
       for ( int j = 0; j < PORTS; j++ ) begin
         // The jth one has priority
         // btw, this takes a while to synth
-        int i = (j+offset_reg)%PORTS;
+        automatic int i = (j+offset_reg)%PORTS;
         if (dest_en[i] && !used[dest[i]]) begin
           ack[i] = 1;
           used[dest[i]] = 1;
