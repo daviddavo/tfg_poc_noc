@@ -43,7 +43,7 @@ function e_dir dimensional_order_routing_v(int x, int y, addr_t dst);
     if (dst.x == x) begin
         if (dst.y == y) begin
             $display("Illegal state: Node received flit with himself as the destination");
-        end else if (dst.x > x) begin
+        end else if (dst.y > y) begin
             return EAST;
         end else begin
             return WEST;
@@ -55,10 +55,19 @@ function e_dir dimensional_order_routing_v(int x, int y, addr_t dst);
     end
 endfunction
 
-// DOR but only in the directions that don't make the package fall out of the edge
+// DOR but only in the directions that does not make the package fall out of the edge
+// - do horizontal priority on north and south edges
+// - do vertical priority on east and west edges
+// - on corners, be mindful of the "default edge"
+//   i.e: on bottom corners, be careful if the destination is south edge
 function e_dir dimensional_order_routing_edgeaware(int x, int y, int x_max, int y_max, addr_t dst);
+    // top corners
+    if ( x == 1 && ( y == 1 || y == y_max-1 ) && dst.x != 0) return dimensional_order_routing_v(x, y, dst);
+    // bot corners
+    if ( x == x_max-1 && ( y == 1 || y == y_max-1) && dst.x != x_max) return dimensional_order_routing_v(x, y, dst);
+    
     // If we are on an horizontal (NORTH | SOUTH) edge, we do horizontal prioritized DOR
-    if ( x == 1 || x == x_max )
+    if ( x == 1 || x == x_max-1 )
         return dimensional_order_routing_h(x, y, dst);
     // Otherwise we do vertically prioritized DOR    
     else

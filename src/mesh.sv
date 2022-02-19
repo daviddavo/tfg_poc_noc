@@ -58,8 +58,8 @@ module mesh #(
             node #(
                    .X(i+1),
                    .Y(j+1),
-                   .X_EDGE(MESH_HEIGHT),
-                   .Y_EDGE(MESH_WIDTH)
+                   .X_EDGE(MESH_HEIGHT+1),
+                   .Y_EDGE(MESH_WIDTH+1)
                    ) node (
                            .clk(clk),
                            .rst(rst),
