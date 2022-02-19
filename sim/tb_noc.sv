@@ -281,6 +281,7 @@ module tb_noc;
         
         forever begin
             flit_t flits[$];
+            automatic flit_hdr_t hdr;
             Packet p;
             int to_wait = max_wait;
             logic found = 0;
@@ -291,6 +292,7 @@ module tb_noc;
                 @(posedge clk);
                 if (mesh_out[x][y].enable && mesh_out[x][y].flit.flit_type == HEADER) begin
                     flits.push_back(mesh_out[x][y].flit);
+                    hdr = flits[0].payload;
                     to_wait = -1;
                     break;
                 end
@@ -300,6 +302,9 @@ module tb_noc;
             
             // No more packets to receive
             if (to_wait == 0) break;
+            
+            if (hdr.dst_addr.x != x || hdr.dst_addr.y != y)
+                $error("< Receiving lost header at %0d,%0d (%s). Header: %p", x, y, pos2portstring("up", x, y), hdr);
             
             // $display("Receiving packet at %0d,%0d", x, y);
             do begin
@@ -338,7 +343,6 @@ module tb_noc;
             end
             
             if (!found) begin
-                automatic flit_hdr_t hdr = flits[0].payload;
                 $error("< Received unknown packet %p at %0d,%0d (%s). Header: %p", flits, x, y, pos2portstring("up", x, y), hdr); 
             end
             // ---- END CHECK FLITS ----
@@ -420,7 +424,7 @@ module tb_noc;
         foreach (dst_mbx[i,j]) if (dst_mbx[i][j].try_get(null) != 0)
             $display("ERROR: Destin mailbox %0d,%0d is not empty!", i, j);
 
-        #150 $finish;
+        #150 $display("Simulation finished!"); $finish;
     end
     
     
