@@ -61,17 +61,12 @@ endfunction
 // - on corners, be mindful of the "default edge"
 //   i.e: on bottom corners, be careful if the destination is south edge
 function e_dir dimensional_order_routing_edgeaware(int x, int y, int x_max, int y_max, addr_t dst);
-    // top corners
-    if ( x == 1 && ( y == 1 || y == y_max-1 ) && dst.x != 0) return dimensional_order_routing_v(x, y, dst);
-    // bot corners
-    if ( x == x_max-1 && ( y == 1 || y == y_max-1) && dst.x != x_max) return dimensional_order_routing_v(x, y, dst);
+    // left edge
+    if ( y == 1 && dst.y == 0 ) return dimensional_order_routing_v(x, y, dst);
+    // right edge
+    if ( y == y_max-1 && dst.y == y_max ) return dimensional_order_routing_v(x, y, dst);
     
-    // If we are on an horizontal (NORTH | SOUTH) edge, we do horizontal prioritized DOR
-    if ( x == 1 || x == x_max-1 )
-        return dimensional_order_routing_h(x, y, dst);
-    // Otherwise we do vertically prioritized DOR    
-    else
-        return dimensional_order_routing_v(x, y, dst);
+    return dimensional_order_routing_h(x, y, dst);
 endfunction
 
 module node #(

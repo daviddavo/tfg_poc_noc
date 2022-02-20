@@ -22,18 +22,20 @@ module top_noc(
            input clk,
            input rst
            );
+   localparam MESH_HEIGHT = 2;
+   localparam MESH_WIDTH = 2;
    
-   node_port west_up[1] ();
-   node_port west_down[1] ();
+   node_port west_up[MESH_HEIGHT] ();
+   node_port west_down[MESH_HEIGHT] ();
    
-   node_port east_up[1] ();
-   node_port east_down[1] ();
+   node_port east_up[MESH_HEIGHT] ();
+   node_port east_down[MESH_HEIGHT] ();
    
-   node_port north_up [3] ();
-   node_port north_down [3] ();
+   node_port north_up [MESH_WIDTH] ();
+   node_port north_down [MESH_WIDTH] ();
    
-   node_port south_up[3] ();
-   node_port south_down[3] ();
+   node_port south_up[MESH_WIDTH] ();
+   node_port south_down[MESH_WIDTH] ();
    
    mesh mesh( .rst (rst),
               .clk (clk),
