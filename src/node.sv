@@ -176,8 +176,7 @@ module node #(
             end
          end
          
-         // combinational loop
-         // always @(ports_down[gi].flit, ports_down[gi].enable, dest[gi], dest_reg, state) begin
+         // TODO: solve combinatiorial loop
          always_comb begin
             // Common signals and defaults
             automatic flit_t flit = ports_down[gi].flit;
@@ -189,15 +188,14 @@ module node #(
               IDLE:
                 if (ports_down[gi].enable && flit.flit_type == HEADER) begin
                    dest[gi] = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                   dest_en[gi] = !dest_established(dest[gi]); // THIS CREATES THE CONFLICT!!
+                   dest_en[gi] = !dest_established(dest[gi]);
                 end 
               ESTABLISHED:
                 begin
                    dest[gi] = dest_reg[gi];
                    dest_en[gi] = 1;
                 end
-            endcase
-            // TODO: assert no two have the same destination allocated (if it is enabled) 
+            endcase 
          end
       end
    endgenerate
