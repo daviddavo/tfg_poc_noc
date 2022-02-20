@@ -104,7 +104,6 @@ module node #(
    logic                bp_data_i[PORTS];
    logic [CB_WIDTH-1:0] data_o[PORTS];
    logic                bp_data_o[PORTS];
-   logic                allocated[PORTS];
    
    // Node state
    var e_state state[PORTS];
@@ -126,6 +125,14 @@ module node #(
                     .bp_o(bp_data_o),
                     .ack(cb_ack)
                     );
+                    
+   function automatic logic dest_established(e_dir dst2chk);
+       for (int i = 0; i < PORTS; i++)
+           if (dest_reg[i] == dst2chk && state[i] == ESTABLISHED)
+               return 1;
+       
+       return 0;
+   endfunction: dest_established
    
    genvar                  gi;
    generate
@@ -145,7 +152,6 @@ module node #(
             if (rst) begin
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
-               allocated[gi] <= 0;
             end else if (clk) begin
                automatic flit_t flit = ports_down[gi].flit;
                case (state[gi])
@@ -154,7 +160,6 @@ module node #(
                    if (ports_down[gi].ack && flit.flit_type == HEADER) begin                      
                       state[gi] <= ESTABLISHED;
                       dest_reg[gi] <= dest[gi];
-                      allocated[dest[gi]] <= 1;
                    end
                  ESTABLISHED:
                    begin
@@ -165,13 +170,14 @@ module node #(
                       if (flit.flit_type == TAIL) begin
                          state[gi] <= IDLE;
                          dest_reg[gi] <= NORTH;
-                         allocated[dest_reg[gi]] <= 0;
                       end
                    end
                endcase
             end
          end
          
+         // combinational loop
+         // always @(ports_down[gi].flit, ports_down[gi].enable, dest[gi], dest_reg, state) begin
          always_comb begin
             // Common signals and defaults
             automatic flit_t flit = ports_down[gi].flit;
@@ -183,7 +189,7 @@ module node #(
               IDLE:
                 if (ports_down[gi].enable && flit.flit_type == HEADER) begin
                    dest[gi] = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                   dest_en[gi] = !allocated[dest[gi]]; // Only if dest[gi] is not used
+                   dest_en[gi] = !dest_established(dest[gi]); // THIS CREATES THE CONFLICT!!
                 end 
               ESTABLISHED:
                 begin

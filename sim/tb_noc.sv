@@ -19,8 +19,8 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `include "common_defines.vh" // Data types are automatically imported. `defines aren't
-`define MESH_HEIGHT 2
-`define MESH_WIDTH 2
+`define MESH_HEIGHT 4
+`define MESH_WIDTH 4
 
 import noc_types::*;
 
@@ -134,6 +134,7 @@ module tb_noc;
     localparam EDGE_SOUTH = `MESH_HEIGHT+1;
     localparam EDGE_EAST = `MESH_WIDTH+1;
     localparam EDGE_WEST = 0;
+    localparam LIVELOCK_CYCLES = 20;
     
     node_port north_up [`MESH_WIDTH]();
     node_port north_down [`MESH_WIDTH]();
@@ -161,6 +162,7 @@ module tb_noc;
     mailbox src_mbx [int][int];
     // From dispatcher to scoreboard
     mailbox dst_mbx [int][int];
+    logic sendersFinished = 0;
     
     mesh #(`MESH_HEIGHT, `MESH_WIDTH) DUT (.*);
     
@@ -187,17 +189,17 @@ module tb_noc;
     
     task init_mbox();        
         for (int i = 1; i <= `MESH_HEIGHT; i++) begin
-            src_mbx[i][0] = new;
-            src_mbx[i][`MESH_WIDTH+1] = new;
-            dst_mbx[i][0] = new;
-            dst_mbx[i][`MESH_WIDTH+1] = new;
+            src_mbx[i][EDGE_NORTH] = new;
+            src_mbx[i][EDGE_SOUTH] = new;
+            dst_mbx[i][EDGE_NORTH] = new;
+            dst_mbx[i][EDGE_SOUTH] = new;
         end
         
         for (int j = 1; j <= `MESH_WIDTH; j++) begin
-            src_mbx[0][j] = new;
-            src_mbx[`MESH_HEIGHT+1][j] = new;
-            dst_mbx[0][j] = new;
-            dst_mbx[`MESH_HEIGHT+1][j] = new;
+            src_mbx[EDGE_WEST][j] = new;
+            src_mbx[EDGE_EAST][j] = new;
+            dst_mbx[EDGE_WEST][j] = new;
+            dst_mbx[EDGE_EAST][j] = new;
         end
     endtask: init_mbox
     
@@ -217,12 +219,16 @@ module tb_noc;
     endtask: tryGenPck
     
     task generate_packets();
-        repeat (50) begin
+        automatic real p = 0.1;
+    
+        while ($time < 1750ns) begin
             // For each clock cycle
             @(posedge clk);
             
+            if ($time > 1000ns) p = 0.25;
+            
             foreach (src_mbx[i,j]) begin
-                tryGenPck(i, j);
+                tryGenPck(i, j, p);
             end
         end
         
@@ -241,7 +247,6 @@ module tb_noc;
         forever begin
             int ncycles = 0;
             
-            // TODO: Eliminate hardcoding
             mesh_in[x][y].enable = 0;
             mesh_in[x][y].flit = 0;
             
@@ -249,7 +254,7 @@ module tb_noc;
             if (p == null) break; // Exit when no more data available
             
             @(negedge clk); // Waiting until clk = 0
-            $display("> Sending from %0d, %0d at cycle %2d (%0tns): %s", x, y, nclk, $realtime/1000, p.toString());
+            $display("> Sending from %0d, %0d at cycle %2d (%0tns): %s", x, y, nclk, $time/1000, p.toString());
             
             // Try sending header
             mesh_in[x][y].enable = 1;
@@ -257,13 +262,14 @@ module tb_noc;
             
             // Wait for ack
             while (!mesh_in[x][y].ack) begin
-                @(negedge clk);
+                @(posedge clk);
                 ncycles++;
                 
-                if (ncycles % 10 == 0)
+                if (ncycles % LIVELOCK_CYCLES == 0)
                     $warning("> Sending packet %0d has been waiting for %0d cycles (possible lock)", p.id, ncycles);
             end
             
+            @(negedge clk);
             for (int i = 1; i < p.flits.size; i++) begin
                 mesh_in[x][y].flit = p.flits[i];
                 @(negedge clk);
@@ -274,34 +280,30 @@ module tb_noc;
     endtask : send_packets
     
     task automatic recv_packets(int x, int y);
-        localparam max_wait = 100;
         localparam portn = 0;
         
         Packet to_chk[$];
         
-        forever begin
+        mesh_out[x][y].ack = 1;
+        
+        while (!sendersFinished) begin
             flit_t flits[$];
             automatic flit_hdr_t hdr;
             Packet p;
-            int to_wait = max_wait;
             logic found = 0;
+            time starttime;
         
             // ---- BEGIN READ FLITS ----
-            // TODO: Remove to_wait and add some kind of event
-            while (to_wait > 0) begin
+            while (!sendersFinished) begin
                 @(posedge clk);
-                if (mesh_out[x][y].enable && mesh_out[x][y].flit.flit_type == HEADER) begin
-                    flits.push_back(mesh_out[x][y].flit);
-                    hdr = flits[0].payload;
-                    to_wait = -1;
-                    break;
-                end
-                
-                to_wait--;
+                if (mesh_out[x][y].enable && mesh_out[x][y].flit.flit_type == HEADER) break;
             end
             
-            // No more packets to receive
-            if (to_wait == 0) break;
+            if (sendersFinished) break;
+            
+            flits.push_back(mesh_out[x][y].flit);
+            hdr = flits[0].payload;
+            starttime = $time;
             
             if (hdr.dst_addr.x != x || hdr.dst_addr.y != y)
                 $error("< Receiving lost header at %0d,%0d (%s). Header: %p", x, y, pos2portstring("up", x, y), hdr);
@@ -343,12 +345,20 @@ module tb_noc;
             end
             
             if (!found) begin
-                $error("< Received unknown packet %p at %0d,%0d (%s). Header: %p", flits, x, y, pos2portstring("up", x, y), hdr); 
+                $error("< Received unknown packet %p at %0d,%0d (%s). Started from %t ns. Header: %p", flits, x, y, pos2portstring("up", x, y), starttime/1000, hdr); 
             end
             // ---- END CHECK FLITS ----
         end
         
-        if (to_chk.size() > 0) $warning("Exiting while some packets were not received at %0d,%0d", x, y);
+        if (to_chk.size() > 0) begin
+            foreach (to_chk[i]) begin
+                $display("Packet not received at %0d,%0d (%s): %s", x, y, pos2portstring("up",x,y), to_chk[i].toString()); 
+            end
+            $warning("Exiting while some packets were not received at %0d,%0d", x, y);
+        end
+        
+        mesh_out[x][y].ack = 0;
+        
         $display("Finished receiving packets to %0d,%0d", x, y);
     endtask : recv_packets
     
@@ -359,10 +369,6 @@ module tb_noc;
             
             mesh_out[i][EDGE_WEST] = vwest_up[i-1];
             mesh_out[i][EDGE_EAST] = veast_up[i-1];
-
-            // Accept responses on the outputs            
-            mesh_out[i][EDGE_WEST].ack = 1;
-            mesh_out[i][EDGE_EAST].ack = 1;
         end
         
         for (int i = 1; i <= `MESH_WIDTH; i++) begin
@@ -371,10 +377,6 @@ module tb_noc;
             
             mesh_out[EDGE_NORTH][i] = vnorth_up[i-1];
             mesh_out[EDGE_SOUTH][i] = vsouth_up[i-1];
-            
-            // Accept responses on the outputs
-            mesh_out[EDGE_NORTH][i].ack = 1;
-            mesh_out[EDGE_SOUTH][i].ack = 1;
         end
     endtask: init_vifaces
 
@@ -383,6 +385,7 @@ module tb_noc;
     
     initial begin
         clk = 0;
+        sendersFinished = 0;
         
         init_vifaces();
         init_mbox();
@@ -391,8 +394,7 @@ module tb_noc;
         // Generate random packets
         fork
             generate_packets();
-            // TODO: One per each port
-            begin : gen_threads
+            begin : gen_senders
                 // The int i in the loop is static, so we need
                 // an automatic aux to be able to use it in multiple threads
                 for (int i = 0; i < `MESH_WIDTH; i++) begin
@@ -400,6 +402,25 @@ module tb_noc;
                     fork
                         send_packets(EDGE_NORTH, aux+1);
                         send_packets(EDGE_SOUTH, aux+1);
+                    join_none;
+                end
+                for (int i = 0; i < `MESH_HEIGHT; i++) begin
+                    automatic int aux = i;
+                    fork
+                        send_packets(aux+1, EDGE_WEST);
+                        send_packets(aux+1, EDGE_EAST);
+                    join_none;
+                end
+                wait fork;
+                sendersFinished = 1;
+                $display("All senders finished");
+            end : gen_senders
+            begin : gen_receivers
+                // The int i in the loop is static, so we need
+                // an automatic aux to be able to use it in multiple threads
+                for (int i = 0; i < `MESH_WIDTH; i++) begin
+                    automatic int aux = i;
+                    fork
                         recv_packets(EDGE_NORTH, aux+1);
                         recv_packets(EDGE_SOUTH, aux+1);
                     join_none;
@@ -408,14 +429,13 @@ module tb_noc;
                 for (int i = 0; i < `MESH_HEIGHT; i++) begin
                     automatic int aux = i;
                     fork
-                        send_packets(aux+1, EDGE_WEST);
-                        send_packets(aux+1, EDGE_EAST);
                         recv_packets(aux+1, EDGE_WEST);
                         recv_packets(aux+1, EDGE_SOUTH);
                     join_none;
                 end
                 wait fork;
-            end : gen_threads
+                $display("All receivers finished");
+            end : gen_receivers          
         join
         
         // Check that there are no more packets to process
@@ -424,7 +444,8 @@ module tb_noc;
         foreach (dst_mbx[i,j]) if (dst_mbx[i][j].try_get(null) != 0)
             $display("ERROR: Destin mailbox %0d,%0d is not empty!", i, j);
 
-        #150 $display("Simulation finished!"); $finish;
+        $display("Simulation finished!");
+        #10 $finish;
     end
     
     
