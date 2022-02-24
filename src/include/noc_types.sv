@@ -13,11 +13,6 @@ typedef enum logic[1:0]
     // Reserved
 } e_flit;
 
-`assertsize_EQ(flit_t, `FLIT_WIDTH);
-typedef struct packed {
-    e_flit flit_type;
-    logic [`FLIT_DATA_WIDTH-1:0] payload;
-} flit_t;
 
 `assertsize_EQ(addr_t, `FLIT_ADDR_WIDTH);
 typedef struct packed {
@@ -26,10 +21,24 @@ typedef struct packed {
 } addr_t;
 
 // Header type payload
-`assertsize_LE(flit_hdr_t, `FLIT_DATA_WIDTH);
+`assertsize_EQ(flit_hdr_t, `FLIT_DATA_WIDTH);
 typedef struct packed
 {
     addr_t dst_addr; // Destination address
     logic [`FLIT_TAIL_LENGTH_WIDTH-1:0] tail_length; // Length in bits of the tail flit
+    logic [`FLIT_DATA_WIDTH-$bits(addr_t)-`FLIT_TAIL_LENGTH_WIDTH-1:0] padding;
 } flit_hdr_t;
+
+`assertsize_EQ(flit_payload_t, `FLIT_DATA_WIDTH);
+typedef union packed {
+    flit_hdr_t hdr;
+    logic [`FLIT_DATA_WIDTH-1:0] data;
+} flit_payload_t;
+
+`assertsize_EQ(flit_t, `FLIT_WIDTH);
+typedef struct packed {
+    e_flit flit_type;
+    flit_payload_t payload;
+    // logic [`FLIT_DATA_WIDTH-1:0] payload;
+} flit_t;
 endpackage

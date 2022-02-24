@@ -34,6 +34,14 @@ module crossbar_rr #(
             );
    
    reg [$clog2(PORTS)-1:0] offset_reg;
+   
+   function logic is_used(int dst2chk);
+       for (int i = 0; i < PORTS; i++) begin
+           if (dest[i] == dst2chk && ack[i]) return 1;
+       end
+       
+       return 0;
+   endfunction: is_used
             
    always_ff @ (posedge clk, posedge rst) begin
        if (rst) begin
@@ -44,14 +52,11 @@ module crossbar_rr #(
    end
 
    always_comb begin 
-      logic used[PORTS];
-
       // First resetting to 0
-      for ( int i = 0; i < PORTS; i++ ) begin
-        ack[i] = 0;
-        used[i] = 0;
-        data_o[i] = 0;
-        bp_o[i] = 0;
+      for ( int j = 0; j < PORTS; j++ ) begin
+        ack[j] = 0;
+        data_o[j] = 0;
+        bp_o[j] = 0;
       end
       
       // For each input port
@@ -59,9 +64,8 @@ module crossbar_rr #(
         // The jth one has priority
         // btw, this takes a while to synth
         automatic int i = (j+offset_reg)%PORTS;
-        if (dest_en[i] && !used[dest[i]]) begin
+        if (dest_en[i] && !is_used(dest[i])) begin
           ack[i] = 1;
-          used[dest[i]] = 1;
           
           data_o[dest[i]] = data_i[i];
           bp_o[i] = bp_i[dest[i]];
