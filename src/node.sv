@@ -98,6 +98,7 @@ module node #(
    logic [CB_WIDTH-1:0] data_i[PORTS];
    logic                bp_data_i[PORTS];
    logic [CB_WIDTH-1:0] data_o[PORTS];
+   logic                data_o_en[PORTS];
    logic                bp_data_o[PORTS];
    
    // Node state
@@ -117,6 +118,7 @@ module node #(
                     .dest_en(dest_en),
                     // Output
                     .data_o(data_o),
+                    .data_o_en(data_o_en),
                     .bp_o(bp_data_o),
                     .ack(cb_ack)
                     );
@@ -134,8 +136,11 @@ module node #(
       // Connect crossbar to data input/output
       for (gi = 0; gi < PORTS; gi++) begin
          // flits and enable crossbar
-         assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
-         assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
+         // assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
+         assign data_i[gi] = ports_down[gi].flit;
+         // assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
+         assign ports_up[gi].flit = data_o[gi];
+         assign ports_up[gi].enable = data_o_en[gi];
          
          // ack for way back crossbar
          assign bp_data_i[gi] = ports_up[gi].ack;

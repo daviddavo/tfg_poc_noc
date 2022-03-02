@@ -19,8 +19,9 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `include "common_defines.vh" // Data types are automatically imported. `defines aren't
-`define MESH_HEIGHT 4
-`define MESH_WIDTH 4
+`define MESH_HEIGHT 2
+`define MESH_WIDTH 2
+`define ALL_FLITS_HEADER
 
 import noc_types::*;
 
@@ -70,20 +71,26 @@ class Packet;
         end else begin
             // +1 because of the HEADER
             flits = new[n_flits+1];
-
+            
+            
+            
             // Divide data into multiple flits
             for (int i = 1; i <= n_flits; i++) begin
-                this.flits[i].flit_type = i==n_flits?TAIL:DATA;
+                `ifdef ALL_FLITS_HEADER
+                    this.flits[i] = this.build_header(this.dst_x, this.dst_y, tail_length, this.id);
+                `elsif
+                    // Little hack: If we access in a dyn array to an undefined index, it returns 0
+                    // So we don't need to add the special case for tail flits
+                    for (int j = 0; j < `FLIT_DATA_WIDTH; j++)
+                        this.flits[i].payload[j] = this.data[(i-1)*`FLIT_DATA_WIDTH + j];
+                `endif
                 
-                // Little hack: If we access in a dyn array to an undefined index, it returns 0
-                // So we don't need to add the special case for tail flits
-                for (int j = 0; j < `FLIT_DATA_WIDTH; j++)
-                    this.flits[i].payload[j] = this.data[(i-1)*`FLIT_DATA_WIDTH + j];
+                this.flits[i].flit_type = i==n_flits?TAIL:DATA;
             end
         end
         
         // Put header in the front
-        this.flits[0] = this.build_header(this.dst_x, this.dst_y, tail_length);
+        this.flits[0] = this.build_header(this.dst_x, this.dst_y, tail_length, this.id);
     endfunction: genflits
     
     // Not supported by verilator...
@@ -92,11 +99,12 @@ class Packet;
     endfunction: post_randomize
     
     function string toString();
-        return $sformatf("Packet %3d, to %0d,%0d with data size: %3d (%0d flits)",
+        return $sformatf("Packet %3d, to %0d,%0d with data size: %3d (%0d flits), hdr: %p",
             this.id,
             this.dst_x, this.dst_y, 
             this.data.size(),
-            this.flits.size());
+            this.flits.size(),
+            this.flits[0].payload);
     endfunction: toString
     
     function void set_src(int x, int y);
@@ -108,23 +116,14 @@ class Packet;
         return '{dst_x, dst_y};
     endfunction: get_dst
     
-    static function flit_t build_header(int dst_x, int dst_y, int tail_length = 0);
+    static function flit_t build_header(int dst_x, int dst_y, int tail_length = 0, int padding = 0);
         static flit_hdr_t hdr;
         hdr.dst_addr = '{dst_x, dst_y};
         hdr.tail_length = tail_length;
+        hdr.padding = padding;
         return '{ HEADER, hdr };
     endfunction
 endclass: Packet
-
-class Sender;
-    virtual node_port.down port;
-    int x; int y;
-
-    function new(virtual node_port.down port, int x, int y);
-        this.port = port;
-        this.x = this.y;
-    endfunction: new
-endclass: Sender
 
 module tb_noc;
     logic clk, rst;
@@ -155,8 +154,8 @@ module tb_noc;
     virtual node_port.down vwest_down[`MESH_HEIGHT] = west_down;
     
     // Easier access
-    virtual node_port.down mesh_in  [EDGE_EAST:EDGE_WEST][EDGE_SOUTH:EDGE_NORTH];
-    virtual node_port.up   mesh_out [EDGE_EAST:EDGE_WEST][EDGE_SOUTH:EDGE_NORTH];
+    virtual node_port.down mesh_in  [EDGE_SOUTH:EDGE_NORTH][EDGE_EAST:EDGE_WEST];
+    virtual node_port.up   mesh_out [EDGE_SOUTH:EDGE_NORTH][EDGE_EAST:EDGE_WEST];
   
     // From generator to dispatcher  
     mailbox src_mbx [int][int];
@@ -167,13 +166,13 @@ module tb_noc;
     mesh #(`MESH_HEIGHT, `MESH_WIDTH) DUT (.*);
     
     function string pos2portstring(string suf, int x, int y);
-        if (x == 0)
+        if (x == EDGE_NORTH)
             return $sformatf("north_%s[%0d]", suf, y-1);
-        else if (x == `MESH_HEIGHT+1)
+        else if (x == EDGE_SOUTH)
             return $sformatf("south_%s[%0d]", suf, y-1);
-        else if (y == 0)
+        else if (y == EDGE_WEST)
             return $sformatf("west_%s[%0d]", suf, x-1);
-        else if (y == `MESH_WIDTH+1)
+        else if (y == EDGE_EAST)
             return $sformatf("east_%s[%0d]", suf, x-1);
         else
             $error("Unknown port at %0d,%0d", x, y);
@@ -189,17 +188,17 @@ module tb_noc;
     
     task init_mbox();        
         for (int i = 1; i <= `MESH_HEIGHT; i++) begin
-            src_mbx[i][EDGE_NORTH] = new;
-            src_mbx[i][EDGE_SOUTH] = new;
-            dst_mbx[i][EDGE_NORTH] = new;
-            dst_mbx[i][EDGE_SOUTH] = new;
+            src_mbx[i][EDGE_WEST] = new;
+            src_mbx[i][EDGE_EAST] = new;
+            dst_mbx[i][EDGE_WEST] = new;
+            dst_mbx[i][EDGE_EAST] = new;
         end
         
         for (int j = 1; j <= `MESH_WIDTH; j++) begin
-            src_mbx[EDGE_WEST][j] = new;
-            src_mbx[EDGE_EAST][j] = new;
-            dst_mbx[EDGE_WEST][j] = new;
-            dst_mbx[EDGE_EAST][j] = new;
+            src_mbx[EDGE_NORTH][j] = new;
+            src_mbx[EDGE_SOUTH][j] = new;
+            dst_mbx[EDGE_NORTH][j] = new;
+            dst_mbx[EDGE_SOUTH][j] = new;
         end
     endtask: init_mbox
     
@@ -221,15 +220,23 @@ module tb_noc;
     task generate_packets();
         automatic real p = 0.1;
     
-        while ($time < 1750ns) begin
+        // while ($time < 4750ns) begin
+        forever begin
             // For each clock cycle
             @(posedge clk);
             
-            if ($time > 1000ns) p = 0.25;
+            if ($time > 10000ns) p = 0.25;
+            if ($time > 20000ns) p = 0.5;
             
             foreach (src_mbx[i,j]) begin
                 tryGenPck(i, j, p);
             end
+        end
+        
+        // "Collapse" the network sending a packet through every port
+        repeat (20) @(posedge clk);
+        foreach (src_mbx[i,j]) begin
+            tryGenPck(i, j, 1.0);
         end
         
         // Sending the finish signal
@@ -254,7 +261,7 @@ module tb_noc;
             if (p == null) break; // Exit when no more data available
             
             @(negedge clk); // Waiting until clk = 0
-            $display("> Sending from %0d, %0d at cycle %2d (%0tns): %s", x, y, nclk, $time/1000, p.toString());
+            $display("> Sending from %0d, %0d at cycle %2d (%0t): %s", x, y, nclk, $time, p.toString());
             
             // Try sending header
             mesh_in[x][y].enable = 1;
@@ -345,7 +352,7 @@ module tb_noc;
             end
             
             if (!found) begin
-                $error("< Received unknown packet %p at %0d,%0d (%s). Started from %t ns. Header: %p", flits, x, y, pos2portstring("up", x, y), starttime/1000, hdr); 
+                $error("< Received unknown packet %p at %0d,%0d (%s). Started from %0t. Header: %p", flits, x, y, pos2portstring("up", x, y), starttime, hdr); 
             end
             // ---- END CHECK FLITS ----
         end
@@ -386,6 +393,7 @@ module tb_noc;
     initial begin
         clk = 0;
         sendersFinished = 0;
+        $timeformat(-9, 2, " ns", 20);
         
         init_vifaces();
         init_mbox();
@@ -418,19 +426,19 @@ module tb_noc;
             begin : gen_receivers
                 // The int i in the loop is static, so we need
                 // an automatic aux to be able to use it in multiple threads
-                for (int i = 0; i < `MESH_WIDTH; i++) begin
+                for (int i = 1; i <= `MESH_WIDTH; i++) begin
                     automatic int aux = i;
                     fork
-                        recv_packets(EDGE_NORTH, aux+1);
-                        recv_packets(EDGE_SOUTH, aux+1);
+                        recv_packets(EDGE_NORTH, aux);
+                        recv_packets(EDGE_SOUTH, aux);
                     join_none;
                 end
                 
-                for (int i = 0; i < `MESH_HEIGHT; i++) begin
+                for (int i = 1; i <= `MESH_HEIGHT; i++) begin
                     automatic int aux = i;
                     fork
-                        recv_packets(aux+1, EDGE_WEST);
-                        recv_packets(aux+1, EDGE_SOUTH);
+                        recv_packets(aux, EDGE_WEST);
+                        recv_packets(aux, EDGE_EAST);
                     join_none;
                 end
                 wait fork;

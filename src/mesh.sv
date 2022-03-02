@@ -19,8 +19,8 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 module mesh #(
-              parameter MESH_HEIGHT = 3,
-              parameter MESH_WIDTH = 3
+              parameter MESH_HEIGHT = 2,
+              parameter MESH_WIDTH = 2
               )(
                 // Port List
                 input clk,
