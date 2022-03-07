@@ -35,16 +35,6 @@ module crossbar_rr #(
             );
    
    reg [$clog2(PORTS)-1:0] offset_reg;
-   reg [$clog2(PORTS)-1:0] used [PORTS];
-   reg used_valid[PORTS];
-   
-   function logic is_used(int dst2chk);
-       for (int i = 0; i < PORTS; i++) begin
-           if (dest[i] == dst2chk && ack[i]) return 1;
-       end
-       
-       return 0;
-   endfunction: is_used
             
    always_ff @ (posedge clk, posedge rst) begin
        if (rst) begin
@@ -53,44 +43,56 @@ module crossbar_rr #(
          offset_reg <= offset_reg + 1;
        end
    end
-   
-   always_comb begin : set_used
-      // First resetting to 0
-      for ( int i = 0; i < PORTS; i++ ) begin
-        used_valid[i] = 0;
-      end
-      
-      // For each input port
-      for ( int j = 0; j < PORTS; j++ ) begin
-        // The one with highest j has priority
-        automatic int i = (j+offset_reg)%PORTS;
-        if (dest_en[i]) begin
-          used[dest[i]] = i;
-          used_valid[dest[i]] = 1;
-        end
-      end
-   end : set_used
 
    always_comb begin : assign_output
-      // First resetting to 0
+      // internas 
+      logic [$clog2(PORTS)-1:0] req [PORTS];
+      logic req_valid[PORTS];
+      logic [WIDTH-1:0] aux_data_o[PORTS];
+      logic aux_data_o_en[PORTS];
+      logic [BP_WIDTH-1:0] aux_bp_o[PORTS];
+      logic aux_ack[PORTS];
+   
+      // First resetting to 0 to avoid latches
       for ( int j = 0; j < PORTS; j++ ) begin
-        ack[j] = 0;
-        data_o[j] = 0;
-        bp_o[j] = 0;
-        data_o_en[j] = 0;
+//        ack[j] = 0;
+//        data_o[j] = 0;
+//        bp_o[j] = 0;
+//        data_o_en[j] = 0;
+        aux_ack[j] = 0;
+        aux_data_o[j] = 0;
+        aux_bp_o[j] = 0;
+        aux_data_o_en[j] = 0;
+        req_valid[j] = 0;
+        req[j] = 0;
+      end
+      
+      // For each requested dest
+      for (int j = 0; j < PORTS; j++ ) begin
+        automatic int i = (j+offset_reg)%PORTS;
+        if (dest_en[i]) begin
+            req[dest[i]] = i;
+            req_valid[dest[i]] = 1;
+        end
       end
       
       // For each used destination port
       for ( int j = 0; j < PORTS; j++ ) begin
         automatic int i = (j+offset_reg)%PORTS;
         // automatic int i = j;
-        if (used_valid[i]) begin
-          assert(dest[used[i]] == i);
-          ack[used[i]] = 1;
-          data_o[dest[used[i]]] = data_i[used[i]];
-          data_o_en[dest[used[i]]] = 1;
-          bp_o[used[i]] = bp_i[dest[used[i]]];
+        if (req_valid[i]) begin
+          assert(dest[req[i]] == i);
+          aux_ack[req[i]] = 1;
+          aux_data_o[dest[req[i]]] = data_i[req[i]];
+          aux_data_o_en[dest[req[i]]] = 1;
+          aux_bp_o[req[i]] = bp_i[dest[req[i]]];
         end
       end
+      
+      // This forces it to set the data_o AFTER the new dest is calculated
+      ack <= aux_ack;
+      data_o <= aux_data_o;
+      data_o_en <= aux_data_o_en;
+      bp_o <= aux_bp_o;
    end : assign_output
 endmodule

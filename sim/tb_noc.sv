@@ -133,7 +133,7 @@ module tb_noc;
     localparam EDGE_SOUTH = `MESH_HEIGHT+1;
     localparam EDGE_EAST = `MESH_WIDTH+1;
     localparam EDGE_WEST = 0;
-    localparam LIVELOCK_CYCLES = 20;
+    localparam LIVELOCK_CYCLES = 50;
     
     node_port north_up [`MESH_WIDTH]();
     node_port north_down [`MESH_WIDTH]();
@@ -220,8 +220,7 @@ module tb_noc;
     task generate_packets();
         automatic real p = 0.1;
     
-        // while ($time < 4750ns) begin
-        forever begin
+        while ($time < 1000000ns) begin
             // For each clock cycle
             @(posedge clk);
             
