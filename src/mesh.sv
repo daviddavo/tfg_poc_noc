@@ -18,6 +18,8 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
+import noc_types::*;
+
 module mesh #(
               parameter MESH_HEIGHT = 2,
               parameter MESH_WIDTH = 2
@@ -70,8 +72,8 @@ module mesh #(
       end
       
       // Connects node to next node horizontally
-      for ( i = 0; i < MESH_HEIGHT; i++) begin
-         for ( j = 0; j < MESH_WIDTH-1; j++) begin
+      for ( i = 0; i < MESH_HEIGHT; i++) begin: links_hh
+         for ( j = 0; j < MESH_WIDTH-1; j++) begin: links_hw
             // East to West
             node_link east2west (
                                  .down(nodes_h[i].nodes_w[j].ports_up[EAST]),
@@ -86,8 +88,8 @@ module mesh #(
       end
       
       // Connects node to next node vertically
-      for ( j = 0; j < MESH_WIDTH; j++) begin
-         for ( i = 0; i < MESH_HEIGHT-1; i++) begin
+      for ( j = 0; j < MESH_WIDTH; j++) begin: links_ww
+         for ( i = 0; i < MESH_HEIGHT-1; i++) begin: links_wh
             // South to North
             node_link south2north (
                                    .down(nodes_h[i].nodes_w[j].ports_up[SOUTH]),

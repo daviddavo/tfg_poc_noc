@@ -1,3 +1,6 @@
+`define MESH_HEIGHT 3
+`define MESH_WIDTH 3
+
 `define MAX_MESH_WIDTH 6
 `define MAX_MESH_HEIGHT 6
 `define FLIT_WIDTH 18

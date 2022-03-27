@@ -163,7 +163,7 @@ module tb_noc;
     mailbox dst_mbx [int][int];
     logic sendersFinished = 0;
     
-    mesh #(`MESH_HEIGHT, `MESH_WIDTH) DUT (.*);
+    mesh_wrapper #(`MESH_HEIGHT, `MESH_WIDTH) DUT (.*);
     
     function string pos2portstring(string suf, int x, int y);
         if (x == EDGE_NORTH)
