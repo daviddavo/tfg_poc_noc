@@ -31,10 +31,10 @@ printi("//--------------------")
 for i, d, up_or_down in it.product(range(MAX_GEN), dirs, ["up", "down"]):
     s_name = f"{d}_{up_or_down}[{i}]"
 
-    printi(f"logic [{FLIT_TYPE_SIZE}-1:0] \{s_name}\.flit[flit_type] ;")
-    printi(f"logic [{FLIT_PAYLOAD_SIZE}-1:0] \{s_name}\.flit[payload] ;")
-    printi(f"logic \{s_name}\.enable ;")
-    printi(f"logic \{s_name}\.ack ;")
+    printi(f"wire [{FLIT_TYPE_SIZE}-1:0] \{s_name}\.flit[flit_type] ;")
+    printi(f"wire [{FLIT_PAYLOAD_SIZE}-1:0] \{s_name}\.flit[payload] ;")
+    printi(f"wire \{s_name}\.enable ;")
+    printi(f"wire \{s_name}\.ack ;")
     print()
 print()
 

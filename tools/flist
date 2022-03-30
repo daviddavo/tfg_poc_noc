@@ -1,0 +1,6 @@
++incdir+sim
++incdir+src
+crossbar_rr.sv
+node.sv
+interfaces/node_port.sv
+mesh.sv
