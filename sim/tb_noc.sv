@@ -1,4 +1,4 @@
-`timescale 1ns / 100ps
+`timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `include "common_defines.vh" // Data types are automatically imported. `defines aren't
-`define MESH_HEIGHT 2
+`define MESH_HEIGHT 1
 `define MESH_WIDTH 2
 `define ALL_FLITS_HEADER
 
@@ -179,13 +179,6 @@ module tb_noc;
             return "";
     endfunction
     
-    task apply_reset();
-        rst <= 1;
-        @(negedge clk);
-        @(negedge clk);
-        rst <= 0;
-    endtask : apply_reset
-    
     task init_mbox();        
         for (int i = 1; i <= `MESH_HEIGHT; i++) begin
             src_mbx[i][EDGE_WEST] = new;
@@ -206,15 +199,27 @@ module tb_noc;
     task automatic tryGenPck(int x, int y, real prob = 0.1);
         real randr = $urandom_range(0, 1000000) / 1000000.0;
         
-        if (randr < prob) begin
-            Packet pkt = new();
-            pkt.randomize();
+        if ( x == 1 && y == 0 ) begin
+            Packet pkt = new(1, 3, "Hello World!");
             pkt.set_src(x, y);
             
             dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
             src_mbx[x][y].put(pkt);
-            // $display("Generating... %s", pkt.toString());
         end
+        
+//        if (randr < prob) begin
+//            Packet pkt = new();
+//            pkt.randomize();
+//            // DONT SEND IT BACK TO THE ONE WHO SENT IT
+//            // OR IMPLEMENT LOOPBACK ON EDGES (with an array of constants in parameters)
+            
+//            while (pkt.dst_x == x && pkt.dst_y == y) pkt.randomize();
+//            pkt.set_src(x, y);
+            
+//            dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
+//            src_mbx[x][y].put(pkt);
+//            // $display("Generating... %s", pkt.toString());
+//        end
     endtask: tryGenPck
     
     task generate_packets();
@@ -249,12 +254,14 @@ module tb_noc;
     task automatic send_packets(int x, int y);
         Packet p;
         flit_t flits[];
-        
+
         forever begin
             int ncycles = 0;
             
             mesh_in[x][y].enable = 0;
             mesh_in[x][y].flit = 0;
+            
+            wait(!rst);
             
             src_mbx[x][y].get(p);
             if (p == null) break; // Exit when no more data available
@@ -267,7 +274,7 @@ module tb_noc;
             mesh_in[x][y].flit = p.flits[0];
             
             // Wait for ack
-            while (!mesh_in[x][y].ack) begin
+            while (mesh_in[x][y].ack !== 1) begin
                 @(posedge clk);
                 ncycles++;
                 
@@ -396,10 +403,15 @@ module tb_noc;
         
         init_vifaces();
         init_mbox();
-        apply_reset();
+        
+        // Reset while inputs are set to 0
+        rst = 1;
 
         // Generate random packets
         fork
+            begin: end_rst
+                #20 rst = 0;
+            end
             generate_packets();
             begin : gen_senders
                 // The int i in the loop is static, so we need

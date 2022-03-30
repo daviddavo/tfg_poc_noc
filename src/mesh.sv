@@ -21,7 +21,7 @@
 import noc_types::*;
 
 module mesh #(
-              parameter MESH_HEIGHT = 2,
+              parameter MESH_HEIGHT = 1,
               parameter MESH_WIDTH = 2
               )(
                 // Port List
