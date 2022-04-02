@@ -184,21 +184,24 @@ module node #(
             dest[gi] = NORTH;
             dest_en[gi] = 0;
             
-            case( state[gi] )
-              IDLE:
-                if (ports_down[gi].enable && flit.flit_type == HEADER) begin
-                   automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                   if (!dest_established(aux_dst)) begin 
-                       dest[gi] = aux_dst; 
+            // When rst, keep everything to zero
+            if (!rst) begin
+                case( state[gi] )
+                  IDLE:
+                    if (ports_down[gi].enable && flit.flit_type == HEADER) begin
+                       automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
+                       if (!dest_established(aux_dst)) begin 
+                           dest[gi] = aux_dst; 
+                           dest_en[gi] = 1;
+                       end
+                    end 
+                  ESTABLISHED:
+                    begin
+                       dest[gi] = dest_reg[gi];
                        dest_en[gi] = 1;
-                   end
-                end 
-              ESTABLISHED:
-                begin
-                   dest[gi] = dest_reg[gi];
-                   dest_en[gi] = 1;
-                end
-            endcase 
+                    end
+                endcase 
+            end
          end
       end
    endgenerate
