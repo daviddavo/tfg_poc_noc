@@ -103,7 +103,8 @@ module node #(
    
    // Node state
    var e_state state[PORTS];
-   var e_dir         dest_reg[PORTS];
+   var e_state nextstate[PORTS];
+   var e_dir   dest_reg[PORTS];
    
    crossbar_rr #(
               .PORTS(PORTS),
@@ -153,26 +154,8 @@ module node #(
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
             end else if (clk) begin
-               automatic flit_t flit = ports_down[gi].flit;
-               case (state[gi])
-                 IDLE:
-                   // If there is a header trying to enter and the comb logic gave us the ack
-                   if (ports_down[gi].ack && flit.flit_type == HEADER) begin                      
-                      state[gi] <= ESTABLISHED;
-                      dest_reg[gi] <= dest[gi];
-                   end
-                 ESTABLISHED:
-                   begin
-                      // If we received the ack in the past, we keep it while we are stablished
-                      noSteal: assert(ports_down[gi].ack);
-                      
-                      // Free resources
-                      if (flit.flit_type == TAIL) begin
-                         state[gi] <= IDLE;
-                         dest_reg[gi] <= NORTH;
-                      end
-                   end
-               endcase
+               state[gi] <= nextstate[gi];
+               if (dest_en[gi]) dest_reg[gi] <= dest[gi];
             end
          end
          
@@ -183,6 +166,7 @@ module node #(
             automatic flit_hdr_t hdr = flit.payload;
             dest[gi] = NORTH;
             dest_en[gi] = 0;
+            nextstate[gi] = state[gi];
             
             // When rst, keep everything to zero
             if (!rst) begin
@@ -193,12 +177,24 @@ module node #(
                        if (!dest_established(aux_dst)) begin 
                            dest[gi] = aux_dst; 
                            dest_en[gi] = 1;
+                           
+                           if (ports_down[gi].ack)
+                               nextstate[gi] = ESTABLISHED;
                        end
                     end 
                   ESTABLISHED:
                     begin
+                       assert(ports_down[gi].enable);
+                       assert(flit.flit_type == DATA | flit.flit_type == TAIL);
                        dest[gi] = dest_reg[gi];
                        dest_en[gi] = 1;
+                       
+                       if (flit.flit_type == TAIL)
+                           nextstate[gi] = IDLE;
+                       else
+                           nextstate[gi] = ESTABLISHED;
+                           
+                       assert(ports_down[gi].ack);
                     end
                 endcase 
             end
