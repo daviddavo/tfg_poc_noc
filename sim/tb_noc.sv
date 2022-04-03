@@ -285,6 +285,8 @@ module tb_noc;
             @(negedge clk);
             for (int i = 1; i < p.flits.size; i++) begin
                 mesh_in[x][y].flit = p.flits[i];
+                @(posedge clk);
+                assert(mesh_in[x][y].ack);
                 @(negedge clk);
             end            
         end
@@ -393,7 +395,7 @@ module tb_noc;
         end
     endtask: init_vifaces
 
-    always #5 clk = ~clk;
+    always #20 clk = ~clk;
     always_ff @(posedge clk) nclk <= nclk + 1;
     
     initial begin
@@ -410,7 +412,7 @@ module tb_noc;
         // Generate random packets
         fork
             begin: end_rst
-                #20 rst = 0;
+                #110 rst = 0;
             end
             generate_packets();
             begin : gen_senders
