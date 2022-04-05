@@ -132,6 +132,15 @@ module node #(
        return 0;
    endfunction: dest_established
    
+   function automatic logic is_loopback(e_dir dst, e_dir src);
+       if (dst == NORTH && X == 1) return 0;
+       if (dst == SOUTH && X == X_EDGE-1) return 0;
+       if (dst == WEST && Y == 1) return 0;
+       if (dst == EAST && Y == Y_EDGE-1) return 0;
+   
+       return dst == src;
+   endfunction: is_loopback
+   
    genvar                  gi;
    generate
       // Connect crossbar to data input/output
@@ -174,7 +183,8 @@ module node #(
                   IDLE:
                     if (ports_down[gi].enable && flit.flit_type == HEADER) begin
                        automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                       if (!dest_established(aux_dst)) begin 
+                       // Not sending back flits to avoid loops except on edges
+                       if (!is_loopback(aux_dst, e_dir'(gi)) && !dest_established(aux_dst)) begin 
                            dest[gi] = aux_dst; 
                            dest_en[gi] = 1;
                            
@@ -185,7 +195,6 @@ module node #(
                   ESTABLISHED:
                     begin
                        assert(ports_down[gi].enable);
-                       assert(flit.flit_type == DATA | flit.flit_type == TAIL);
                        dest[gi] = dest_reg[gi];
                        dest_en[gi] = 1;
                        

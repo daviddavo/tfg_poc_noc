@@ -199,27 +199,28 @@ module tb_noc;
     task automatic tryGenPck(int x, int y, real prob = 0.1);
         real randr = $urandom_range(0, 1000000) / 1000000.0;
         
-        if ( x == 1 && y == 0 ) begin
-            Packet pkt = new(1, 3, "Hello World!");
-            pkt.set_src(x, y);
-            
-            dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
-            src_mbx[x][y].put(pkt);
-        end
-        
-//        if (randr < prob) begin
-//            Packet pkt = new();
-//            pkt.randomize();
-//            // DONT SEND IT BACK TO THE ONE WHO SENT IT
-//            // OR IMPLEMENT LOOPBACK ON EDGES (with an array of constants in parameters)
-            
-//            while (pkt.dst_x == x && pkt.dst_y == y) pkt.randomize();
+//        if ( x == 1 && y == 0 ) begin
+//            Packet pkt = new(1, 3, "Hello World!");
 //            pkt.set_src(x, y);
             
 //            dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
 //            src_mbx[x][y].put(pkt);
-//            // $display("Generating... %s", pkt.toString());
 //        end
+        
+        if (randr < prob) begin
+            Packet pkt = new();
+            pkt.randomize();
+            
+            // DONT SEND IT BACK TO THE ONE WHO SENT IT
+            // OR IMPLEMENT LOOPBACK ON EDGES (with an array of constants in parameters)
+            // TODO: Delete this
+            // while (pkt.dst_x == x && pkt.dst_y == y) pkt.randomize();
+            pkt.set_src(x, y);
+            
+            dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
+            src_mbx[x][y].put(pkt);
+            // $display("Generating... %s", pkt.toString());
+        end
     endtask: tryGenPck
     
     task generate_packets();
@@ -258,8 +259,9 @@ module tb_noc;
         forever begin
             int ncycles = 0;
             
-            mesh_in[x][y].enable = 0;
-            mesh_in[x][y].flit = 0;
+            // We need to use NBA so the receive_packets can read them on non-timing simulation
+            mesh_in[x][y].enable <= 0;
+            mesh_in[x][y].flit <= 0;
             
             wait(!rst);
             
@@ -270,8 +272,8 @@ module tb_noc;
             $display("> Sending from %0d, %0d at cycle %2d (%0t): %s", x, y, nclk, $time, p.toString());
             
             // Try sending header
-            mesh_in[x][y].enable = 1;
-            mesh_in[x][y].flit = p.flits[0];
+            mesh_in[x][y].enable <= 1;
+            mesh_in[x][y].flit <= p.flits[0];
             
             // Wait for ack
             while (mesh_in[x][y].ack !== 1) begin
@@ -284,7 +286,7 @@ module tb_noc;
             
             @(negedge clk);
             for (int i = 1; i < p.flits.size; i++) begin
-                mesh_in[x][y].flit = p.flits[i];
+                mesh_in[x][y].flit <= p.flits[i];
                 @(posedge clk);
                 assert(mesh_in[x][y].ack);
                 @(negedge clk);
@@ -395,7 +397,7 @@ module tb_noc;
         end
     endtask: init_vifaces
 
-    always #20 clk = ~clk;
+    always #20 clk = ~clk; 
     always_ff @(posedge clk) nclk <= nclk + 1;
     
     initial begin
