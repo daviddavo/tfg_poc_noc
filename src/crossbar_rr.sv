@@ -83,9 +83,9 @@ module crossbar_rr #(
         if (req_valid[i]) begin
           assert(dest[req[i]] == i);
           assert(dest_en[req[i]] == 'b1);
-          aux_ack[req[i]] = dest_en[req[i]];
+          aux_ack[req[i]] = 'b1;
           aux_data_o[dest[req[i]]] = data_i[req[i]];
-          aux_data_o_en[dest[req[i]]] = dest_en[req[i]];
+          aux_data_o_en[dest[req[i]]] = 'b1;
           aux_bp_o[req[i]] = bp_i[dest[req[i]]];
         end
       end

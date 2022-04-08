@@ -211,10 +211,9 @@ module tb_noc;
             Packet pkt = new();
             pkt.randomize();
             
-            // DONT SEND IT BACK TO THE ONE WHO SENT IT
-            // OR IMPLEMENT LOOPBACK ON EDGES (with an array of constants in parameters)
-            // TODO: Delete this
+            // DISABLE LOOPBACK (SENDING IT BACK TO THE IFACE WHO SENT IT)
             // while (pkt.dst_x == x && pkt.dst_y == y) pkt.randomize();
+
             pkt.set_src(x, y);
             
             dst_mbx[pkt.dst_x][pkt.dst_y].put(pkt);
@@ -269,6 +268,7 @@ module tb_noc;
             if (p == null) break; // Exit when no more data available
             
             @(negedge clk); // Waiting until clk = 0
+            @(negedge clk); // Needs to flush
             $display("> Sending from %0d, %0d at cycle %2d (%0t): %s", x, y, nclk, $time, p.toString());
             
             // Try sending header
@@ -290,7 +290,7 @@ module tb_noc;
                 @(posedge clk);
                 assert(mesh_in[x][y].ack);
                 @(negedge clk);
-            end            
+            end
         end
         
         $display("Finished sending packets from %0d,%0d", x, y);
@@ -397,7 +397,7 @@ module tb_noc;
         end
     endtask: init_vifaces
 
-    always #20 clk = ~clk; 
+    always #50 clk = ~clk; 
     always_ff @(posedge clk) nclk <= nclk + 1;
     
     initial begin

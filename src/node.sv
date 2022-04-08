@@ -85,7 +85,7 @@ module node #(
    
    
    // Definitions
-   typedef enum logic [1:0] { IDLE, ESTABLISHED } e_state;
+   typedef enum logic [1:0] { IDLE, ESTABLISHED, TAIL_WAIT } e_state;
    
    // Crossbar things
    // dest[NORTH] = EAST -> NORTH input is connected to EAST
@@ -123,14 +123,15 @@ module node #(
                     .bp_o(bp_data_o),
                     .ack(cb_ack)
                     );
-                    
-   function automatic logic dest_established(e_dir dst2chk);
+        
+   // Returns 0 if there is someone using the required port            
+   function automatic logic dest_idle(e_dir dst2chk, int i_skip = -1);
        for (int i = 0; i < PORTS; i++)
-           if (dest_reg[i] == dst2chk && state[i] == ESTABLISHED)
-               return 1;
+           if (i != i_skip && dest_reg[i] == dst2chk && state[i] != IDLE)
+               return 0;
        
-       return 0;
-   endfunction: dest_established
+       return 1;
+   endfunction: dest_idle
    
    function automatic logic is_loopback(e_dir dst, e_dir src);
        if (dst == NORTH && X == 1) return 0;
@@ -154,7 +155,7 @@ module node #(
          
          // ack for way back crossbar
          assign bp_data_i[gi] = ports_up[gi].ack;
-         assign ports_down[gi].ack = bp_data_o[gi]; 
+         assign ports_down[gi].ack = bp_data_o[gi];
       end
 
       for (gi = 0; gi < PORTS; gi++) begin
@@ -164,7 +165,7 @@ module node #(
                dest_reg[gi] <= NORTH;
             end else if (clk) begin
                state[gi] <= nextstate[gi];
-               if (dest_en[gi]) dest_reg[gi] <= dest[gi];
+               dest_reg[gi] <= dest[gi];
             end
          end
          
@@ -184,8 +185,8 @@ module node #(
                     if (ports_down[gi].enable && flit.flit_type == HEADER) begin
                        automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
                        // Not sending back flits to avoid loops except on edges
-                       if (!is_loopback(aux_dst, e_dir'(gi)) && !dest_established(aux_dst)) begin 
-                           dest[gi] = aux_dst; 
+                       if (!is_loopback(aux_dst, e_dir'(gi)) && dest_idle(aux_dst, gi)) begin 
+                           dest[gi] = aux_dst;
                            dest_en[gi] = 1;
                            
                            if (ports_down[gi].ack)
@@ -199,11 +200,17 @@ module node #(
                        dest_en[gi] = 1;
                        
                        if (flit.flit_type == TAIL)
-                           nextstate[gi] = IDLE;
+                           nextstate[gi] = TAIL_WAIT;
                        else
                            nextstate[gi] = ESTABLISHED;
                            
                        assert(ports_down[gi].ack);
+                    end
+                  // Makes the test more readable. Perhaps it could be eliminated.
+                  TAIL_WAIT:
+                    begin
+                       dest[gi] = dest_reg[gi];
+                       nextstate[gi] = IDLE;
                     end
                 endcase 
             end
