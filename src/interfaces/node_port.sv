@@ -24,16 +24,22 @@ interface node_port;
    logic enable;
    
    // Backpressure
+   
+   // Tells whether the whole path has been established
    logic ack;
+   // Reject. Inmediately cancels the propagation
+   logic rej;
    
    modport down (
                  input  flit,
                  input  enable, 
-                 output ack
+                 output ack,
+                 output rej
                  );
    
    modport up (
                input  ack,
+               input  rej,
                output flit,
                output enable
                );

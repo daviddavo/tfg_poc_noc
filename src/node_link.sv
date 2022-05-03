@@ -27,4 +27,5 @@ module node_link(
    assign up.flit = down.flit;
    assign up.enable = down.enable;
    assign down.ack = up.ack;
+   assign down.rej = up.rej;
 endmodule

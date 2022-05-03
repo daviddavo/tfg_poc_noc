@@ -85,7 +85,7 @@ module node #(
    
    
    // Definitions
-   typedef enum logic [1:0] { IDLE, ESTABLISHED, TAIL_WAIT } e_state;
+   typedef enum { IDLE, ESTABLISHED, ESTABLISHING, TAIL_WAIT } e_state;
    
    // Crossbar things
    // dest[NORTH] = EAST -> NORTH input is connected to EAST
@@ -95,11 +95,15 @@ module node #(
    
    // `FLIT_WIDTH + enable + ack
    localparam CB_WIDTH = $bits(flit_t)+1;
-   logic [CB_WIDTH-1:0] data_i[PORTS];
-   logic                bp_data_i[PORTS];
-   logic [CB_WIDTH-1:0] data_o[PORTS];
-   logic                data_o_en[PORTS];
-   logic                bp_data_o[PORTS];
+   wire  [CB_WIDTH-1:0] data_i[PORTS];
+   wire  [1:0]          bp_data_i[PORTS];
+   wire  [CB_WIDTH-1:0] data_o[PORTS];
+   reg   [CB_WIDTH-1:0] data_o_reg[PORTS];
+   wire                 data_o_en[PORTS];
+   reg   [CB_WIDTH-1:0] data_o_en_reg[PORTS];
+   wire  [1:0]          bp_data_o[PORTS];
+   wire                 bp_ack[PORTS];
+   wire                 bp_rej[PORTS];
    
    // Node state
    var e_state state[PORTS];
@@ -108,7 +112,8 @@ module node #(
    
    crossbar_rr #(
               .PORTS(PORTS),
-              .WIDTH(CB_WIDTH)
+              .WIDTH(CB_WIDTH),
+              .BP_WIDTH(2) // ack
               ) cb (
                     // Input
                     .clk(clk), 
@@ -150,12 +155,12 @@ module node #(
          // assign data_i[gi] = { ports_down[gi].flit, ports_down[gi].enable };
          assign data_i[gi] = ports_down[gi].flit;
          // assign { ports_up[gi].flit, ports_up[gi].enable } = data_o[gi];
-         assign ports_up[gi].flit = data_o[gi];
-         assign ports_up[gi].enable = data_o_en[gi];
+         assign ports_up[gi].flit = data_o_reg[gi];
+         assign ports_up[gi].enable = data_o_en_reg[gi];
          
          // ack for way back crossbar
-         assign bp_data_i[gi] = ports_up[gi].ack;
-         assign ports_down[gi].ack = bp_data_o[gi];
+         assign bp_data_i[gi] = { ports_up[gi].ack, ports_up[gi].rej };
+         assign { bp_ack[gi], bp_rej[gi] } = bp_data_o[gi];
       end
 
       for (gi = 0; gi < PORTS; gi++) begin
@@ -163,39 +168,68 @@ module node #(
             if (rst) begin
                state[gi] <= IDLE;
                dest_reg[gi] <= NORTH;
+                data_o_reg[gi] <= 0;
+                data_o_en_reg[gi] <= 0;
             end else if (clk) begin
                state[gi] <= nextstate[gi];
                dest_reg[gi] <= dest[gi];
+                data_o_reg[gi] <= data_o[gi];
+                data_o_en_reg[gi] <= data_o_en[gi];
             end
          end
          
          // TODO: solve combinatiorial loop
          always_comb begin
-            // Common signals and defaults
+            // Common signals and default
             automatic flit_t flit = ports_down[gi].flit;
             automatic flit_hdr_t hdr = flit.payload;
+            
             dest[gi] = NORTH;
             dest_en[gi] = 0;
             nextstate[gi] = state[gi];
+            ports_down[gi].ack = 0;
+            ports_down[gi].rej = 0;
             
             // When rst, keep everything to zero
             if (!rst) begin
                 case( state[gi] )
                   IDLE:
-                    if (ports_down[gi].enable && flit.flit_type == HEADER) begin
-                       automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
-                       // Not sending back flits to avoid loops except on edges
-                       if (!is_loopback(aux_dst, e_dir'(gi)) && dest_idle(aux_dst, gi)) begin 
-                           dest[gi] = aux_dst;
-                           dest_en[gi] = 1;
-                           
-                           if (ports_down[gi].ack)
-                               nextstate[gi] = ESTABLISHED;
-                       end
-                    end 
+                    begin
+                        automatic e_dir aux_dst = dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr);
+                        automatic logic is_available = !is_loopback(aux_dst, e_dir'(gi)) && dest_idle(aux_dst, gi);
+                        
+                        if (ports_down[gi].enable && flit.flit_type == HEADER && is_available) begin
+                            dest[gi] = aux_dst;
+                            dest_en[gi] = 1;
+                            
+                            if (cb_ack[gi])
+                                nextstate[gi] = ESTABLISHING;
+                        end
+                    end
+                  ESTABLISHING:
+                    if (bp_rej[gi]) begin
+                      nextstate[gi] = IDLE;
+                      ports_down[gi].rej = 1;
+                    end else begin
+                      assert(dimensional_order_routing_edgeaware(X, Y, X_EDGE, Y_EDGE, hdr.dst_addr) == dest_reg[gi]);
+                      dest[gi] = dest_reg[gi];
+                      dest_en[gi] = 1;
+
+                      if (bp_ack[gi]) begin
+                        nextstate[gi] = ESTABLISHED;
+                        ports_down[gi].ack = 1;
+                      end else begin
+                        nextstate[gi] = ESTABLISHING;
+                      end
+                    end
                   ESTABLISHED:
                     begin
+                       // TODO: What if state is stablished but the packet has "already" passed
                        assert(ports_down[gi].enable);
+                       assert property (@ (posedge clk) clk |=> flit.flit_type != HEADER);
+                       assert property (@ (posedge clk) clk |=> bp_ack[gi]);
+                       
+                       ports_down[gi].ack = 1;
                        dest[gi] = dest_reg[gi];
                        dest_en[gi] = 1;
                        
@@ -203,8 +237,6 @@ module node #(
                            nextstate[gi] = TAIL_WAIT;
                        else
                            nextstate[gi] = ESTABLISHED;
-                           
-                       assert(ports_down[gi].ack);
                     end
                   // Makes the test more readable. Perhaps it could be eliminated.
                   TAIL_WAIT:

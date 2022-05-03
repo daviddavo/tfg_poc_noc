@@ -133,7 +133,7 @@ module tb_noc;
     localparam EDGE_SOUTH = `MESH_HEIGHT+1;
     localparam EDGE_EAST = `MESH_WIDTH+1;
     localparam EDGE_WEST = 0;
-    localparam LIVELOCK_CYCLES = 50;
+    localparam LIVELOCK_CYCLES = 100;
     
     node_port north_up [`MESH_WIDTH]();
     node_port north_down [`MESH_WIDTH]();
@@ -301,10 +301,12 @@ module tb_noc;
         
         Packet to_chk[$];
         
+        mesh_out[x][y].rej = 0;
         mesh_out[x][y].ack = 1;
         
         while (!sendersFinished) begin
             flit_t flits[$];
+            flit_t deletedHdrs[$];
             automatic flit_hdr_t hdr;
             Packet p;
             logic found = 0;
@@ -333,6 +335,18 @@ module tb_noc;
             // ---- END READ FLITS ----
             
             // ---- BEGIN CHECK FLITS ----
+            // Before checking, we delete repeated HEADERS because of the registered outputs
+            while (flits.size() > 1 && flits[1].flit_type == HEADER) begin 
+                deletedHdrs.push_back(flits.pop_front());
+                
+                if (deletedHdrs[$] != flits[0]) begin
+                    $error("Inconsistency deleting headers. deleted %p, remaining %p", deletedHdrs[$], flits[0]);
+                end
+            end
+            
+            if (deletedHdrs.size() > `MESH_WIDTH && deletedHdrs.size() > `MESH_HEIGHT)
+                $warning("Deleted too many headers (%0d", deletedHdrs);
+                        
             // to_chk can't be empty (there should always be at least a sent packet to check)
             while (dst_mbx[x][y].try_peek(p) != 0 || to_chk.size() == 0) begin
                 dst_mbx[x][y].get(p);
