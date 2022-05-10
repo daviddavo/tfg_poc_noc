@@ -19,11 +19,12 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 `include "common_defines.vh" // Data types are automatically imported. `defines aren't
-`define MESH_HEIGHT 1
-`define MESH_WIDTH 2
 `define ALL_FLITS_HEADER
+// Max bits in a packet data
+`define MAX_PACKET_SIZE 160
 
-import noc_types::*;
+// import noc_types::*;
+import noc_functions::build_header_info;
 
 class Packet;
     static int nextid = 0;
@@ -44,7 +45,7 @@ class Packet;
                    };
 
     // Maximum size: 10 flits
-    constraint data_size { data.size() inside {[1:10*`FLIT_DATA_WIDTH]}; };
+    constraint data_size { data.size() inside {[1:`MAX_PACKET_SIZE]}; };
                        
     function new(int dst_x=1, int dst_y=0, bit data []={});
         this.id = nextid;
@@ -77,7 +78,7 @@ class Packet;
             // Divide data into multiple flits
             for (int i = 1; i <= n_flits; i++) begin
                 `ifdef ALL_FLITS_HEADER
-                    this.flits[i] = this.build_header(this.dst_x, this.dst_y, tail_length, this.id);
+                    this.flits[i] = build_header_info(this.dst_x, this.dst_y, tail_length, this.id);
                 `elsif
                     // Little hack: If we access in a dyn array to an undefined index, it returns 0
                     // So we don't need to add the special case for tail flits
@@ -90,7 +91,7 @@ class Packet;
         end
         
         // Put header in the front
-        this.flits[0] = this.build_header(this.dst_x, this.dst_y, tail_length, this.id);
+        this.flits[0] = build_header_info(this.dst_x, this.dst_y, tail_length, this.id);
     endfunction: genflits
     
     // Not supported by verilator...
@@ -115,14 +116,6 @@ class Packet;
     function addr_t get_dst();
         return '{dst_x, dst_y};
     endfunction: get_dst
-    
-    static function flit_t build_header(int dst_x, int dst_y, int tail_length = 0, int padding = 0);
-        static flit_hdr_t hdr;
-        hdr.dst_addr = '{dst_x, dst_y};
-        hdr.tail_length = tail_length;
-        hdr.padding = padding;
-        return '{ HEADER, hdr };
-    endfunction
 endclass: Packet
 
 module tb_noc;

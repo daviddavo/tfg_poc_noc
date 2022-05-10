@@ -561,5 +561,8 @@ generate
 endgenerate
 
 		mesh mesh (.*);
+        
+        // assert (mesh.MESH_HEIGHT == MESH_HEIGHT);
+        // assert (mesh.MESH_WIDTH == MESH_WIDTH);
 	`endif
 endmodule

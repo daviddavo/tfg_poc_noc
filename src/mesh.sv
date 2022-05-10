@@ -19,10 +19,11 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 import noc_types::*;
+import noc_functions::*; // Unused. Import required to force Vivado to compile it and send it to questasim
 
 module mesh #(
-              parameter MESH_HEIGHT = 1,
-              parameter MESH_WIDTH = 2
+              parameter MESH_HEIGHT = `MESH_HEIGHT,
+              parameter MESH_WIDTH = `MESH_WIDTH
               )(
                 // Port List
                 input clk,

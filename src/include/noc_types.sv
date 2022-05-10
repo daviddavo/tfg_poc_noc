@@ -22,12 +22,18 @@ typedef struct packed {
 
 // Header type payload
 `assertsize_EQ(flit_hdr_t, `FLIT_DATA_WIDTH);
+typedef logic [`FLIT_DATA_WIDTH-$bits(addr_t)-1:0] flit_hdr_free;
 typedef struct packed
 {
     addr_t dst_addr; // Destination address
-    logic [`FLIT_TAIL_LENGTH_WIDTH-1:0] tail_length; // Length in bits of the tail flit
-    logic [`FLIT_DATA_WIDTH-$bits(addr_t)-`FLIT_TAIL_LENGTH_WIDTH-1:0] padding;
+    flit_hdr_free free;
 } flit_hdr_t;
+
+typedef struct packed
+{
+    logic [`FLIT_TAIL_LENGTH_WIDTH-1:0] tail_length; // Length in bits of the tail flit
+    logic [`FLIT_DATA_WIDTH-$bits(addr_t)-`FLIT_TAIL_LENGTH_WIDTH-1:0] rem;
+} flit_hdr_info;
 
 `assertsize_EQ(flit_payload_t, `FLIT_DATA_WIDTH);
 typedef union packed {
