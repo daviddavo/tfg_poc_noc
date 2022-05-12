@@ -25,6 +25,7 @@ module noc_serial_sender import noc_types::*; #(
     input                    clk,
     input                    rst,
     input                    enable,  // I: Enable padding/packet
+    input                    flush,   // I: Allows another transmission  
     input addr_t             dst_addr,
     input [PADDING_BITS-1:0] padding,
     input [PACKET_BITS-1:0]  packet ,
@@ -63,19 +64,15 @@ module noc_serial_sender import noc_types::*; #(
         nextstate = IDLE;
         
         case (state)
-          IDLE, SENT:
-            begin
-                if (state == SENT) ack = 1;
-                
-                if (enable) begin
-                  up.enable = 1;
-                  up.flit = build_header2(dst_addr, padding);
-                  
-                  if (up.ack)
-                    nextstate = SENDING;
-                  else
-                    nextstate = ESTABLISHING;
-                end
+          IDLE:
+            if (enable) begin
+              up.enable = 1;
+              up.flit = build_header2(dst_addr, padding);
+              
+              if (up.ack)
+                nextstate = SENDING;
+              else
+                nextstate = ESTABLISHING;
             end
           ESTABLISHING:
             begin
@@ -106,6 +103,16 @@ module noc_serial_sender import noc_types::*; #(
                   nextstate = SENT;
               end
             end
+          SENT:
+            begin
+              ack = 1;
+              next_cnt = 0;
+              
+              if ( flush )
+                nextstate = IDLE;
+              else
+                nextstate = SENT;
+            end  
         endcase
     end : fsm_nextstate
 endmodule

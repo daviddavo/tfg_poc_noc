@@ -23,7 +23,7 @@
 module top_serial(
   input clk,
   input rst,
-  input receiver_flush,
+  input flush,
   input [3:0] sender_padding,
   input [41:0] sender_packet,
   input sender_enable,
@@ -69,7 +69,6 @@ noc_serial_receiver #(
   .PADDING_BITS(4)
 ) i_receiver (.*,
   .down ( south_up[0] ),
-  .flush (receiver_flush),
   .valid (receiver_valid),
   .padding (receiver_padding),
   .packet (receiver_packet)

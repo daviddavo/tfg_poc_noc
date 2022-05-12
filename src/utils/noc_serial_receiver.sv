@@ -73,6 +73,7 @@ module noc_serial_receiver #(
         automatic flit_t flit = down.flit;
         
         down.ack = 1;
+        down.rej = 0;
   
         nextstate = IDLE;
         payload_regs_en = 0;
