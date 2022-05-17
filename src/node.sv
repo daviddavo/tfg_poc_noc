@@ -18,57 +18,6 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-import noc_types::*;
-
-// Priority: HORIZONTAL > VERTICAL
-function e_dir dimensional_order_routing_h(int x, int y, addr_t dst);
-   // This is the desired column
-   if (dst.y == y) begin
-      if (dst.x == x) begin
-         // This should not happen
-         $display("Illegal state: Node received flit with himself as the destination");
-      end else if (dst.x > x) begin
-         return SOUTH;
-      end else begin
-         return NORTH;
-      end
-   end else if (dst.y > y) begin
-      return EAST;
-   end else begin // dst.y < y
-      return WEST;
-   end
-endfunction
-
-function e_dir dimensional_order_routing_v(int x, int y, addr_t dst);
-    if (dst.x == x) begin
-        if (dst.y == y) begin
-            $display("Illegal state: Node received flit with himself as the destination");
-        end else if (dst.y > y) begin
-            return EAST;
-        end else begin
-            return WEST;
-        end
-    end else if (dst. x > x) begin
-        return SOUTH;
-    end else begin
-        return NORTH;
-    end
-endfunction
-
-// DOR but only in the directions that does not make the package fall out of the edge
-// - do horizontal priority on north and south edges
-// - do vertical priority on east and west edges
-// - on corners, be mindful of the "default edge"
-//   i.e: on bottom corners, be careful if the destination is south edge
-function e_dir dimensional_order_routing_edgeaware(int x, int y, int x_max, int y_max, addr_t dst);
-    // left edge
-    if ( y == 1 && dst.y == 0 ) return dimensional_order_routing_v(x, y, dst);
-    // right edge
-    if ( y == y_max-1 && dst.y == y_max ) return dimensional_order_routing_v(x, y, dst);
-    
-    return dimensional_order_routing_h(x, y, dst);
-endfunction
-
 module node #(
               parameter X = 1,
               parameter Y = 1,
@@ -82,7 +31,8 @@ module node #(
                  node_port.up ports_up[PORTS],
                  node_port.down ports_down[PORTS]
                  );
-   
+   import noc_types::*;
+   import noc_functions::*;
    
    // Definitions
    typedef enum { IDLE, ESTABLISHED, ESTABLISHING, TAIL_WAIT } e_state;
@@ -199,9 +149,12 @@ module node #(
                         automatic logic is_available = !is_loopback(aux_dst, e_dir'(gi)) && dest_idle(aux_dst, gi);
                         
                         if (ports_down[gi].enable && flit.flit_type == HEADER && is_available) begin
+                            // We make a request to the crossbar
                             dest[gi] = aux_dst;
                             dest_en[gi] = 1;
                             
+                            // If the request has been granted, we go to the next state
+                            // This guards us against to headers with the same free destination coming in at the same time
                             if (cb_ack[gi])
                                 nextstate[gi] = ESTABLISHING;
                         end

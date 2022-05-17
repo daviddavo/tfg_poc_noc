@@ -18,8 +18,8 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-import noc_types::flit_t;
 interface node_port;
+   import noc_types::flit_t;
    flit_t flit;
    logic enable;
    

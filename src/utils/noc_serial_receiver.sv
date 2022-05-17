@@ -18,7 +18,9 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-module noc_serial_receiver #(
+module noc_serial_receiver
+import noc_types::*; 
+#(
     parameter PACKET_BITS=16,
     parameter PADDING_BITS=0
 ) (
