@@ -46,10 +46,15 @@ import noc_types::*;
     logic [N_FLITS-1:0]                  payload_regs_en;
     logic [$clog2(N_FLITS)-1:0]          cnt, nextcnt;
     
-    assign padding = hdr_reg.free;
+    // We quiet the output bus if is not valid
+    
+    generate if (PADDING_BITS > 0)
+        assign padding = {PADDING_BITS{valid}} & hdr_reg.free;
+    endgenerate
     // payload_regs[0] has the less significant bits
     assign payload_regs_unpack = {<<`FLIT_DATA_WIDTH{payload_regs}};
-    assign packet = payload_regs_unpack[PACKET_BITS-1:0];
+    // We quiet the output bus if is not valid
+    assign packet = {PACKET_BITS{valid}} & payload_regs_unpack[PACKET_BITS-1:0];
     
     always_ff @ (posedge clk, posedge rst) begin: fsm
         if (rst) begin
@@ -101,8 +106,11 @@ import noc_types::*;
               nextstate = RECEIVING;
               nextcnt = cnt + 1;
               
-              if ( nextcnt >= N_FLITS )
+              if (flit.flit_type == TAIL) begin
+                // nextcnt may overflow
+                assert (cnt == N_FLITS - 1);
                 nextstate = VALID;
+              end
             end
           VALID:
             begin
