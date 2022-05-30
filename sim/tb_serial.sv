@@ -25,7 +25,7 @@ module tb_serial;
         #110 rst = 0;
         
         sender_padding = 4'b1011;
-        sender_packet = 42'h2AC19440329;
+        sender_packet = 42'h24c65316459;
         
         #10
         sender_enable = 1;
@@ -34,7 +34,7 @@ module tb_serial;
         assert (sender_packet == receiver_packet);
         assert (sender_padding == receiver_padding);
         
-        #10 @(negedge clk); flush = 1; @(negedge clk); flush = 0;
+        #50 @(negedge clk); flush = 1; @(negedge clk); flush = 0;
         assert (!receiver_valid);
         
         wait (receiver_valid);
